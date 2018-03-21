@@ -235,6 +235,8 @@ enum devlink_attr {
 	DEVLINK_ATTR_DPIPE_TABLE_RESOURCE_UNITS,/* u64 */
 
 	DEVLINK_ATTR_PORT_FLAVOUR,		/* u16 */
+	DEVLINK_ATTR_PORT_NUMBER,		/* u32 */
+	DEVLINK_ATTR_PORT_SPLIT_SUBPORT_NUMBER,	/* u32 */
 
 	/* add new attributes above here, update the policy in devlink.c */
 

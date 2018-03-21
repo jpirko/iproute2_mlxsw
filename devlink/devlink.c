@@ -1737,9 +1737,15 @@ static void pr_out_port(struct dl *dl, struct nlattr **tb)
 
 		pr_out_str(dl, "flavour", port_flavour_name(port_flavour));
 	}
+	if (tb[DEVLINK_ATTR_PORT_NUMBER])
+		pr_out_uint(dl, "number",
+			    mnl_attr_get_u32(tb[DEVLINK_ATTR_PORT_NUMBER]));
 	if (tb[DEVLINK_ATTR_PORT_SPLIT_GROUP])
 		pr_out_uint(dl, "split_group",
 			    mnl_attr_get_u32(tb[DEVLINK_ATTR_PORT_SPLIT_GROUP]));
+	if (tb[DEVLINK_ATTR_PORT_SPLIT_SUBPORT_NUMBER])
+		pr_out_uint(dl, "subport",
+			    mnl_attr_get_u32(tb[DEVLINK_ATTR_PORT_SPLIT_SUBPORT_NUMBER]));
 	pr_out_port_handle_end(dl);
 }
 
