@@ -19,7 +19,7 @@ devlink \- Devlink tool
 
 .ti -8
 .IR OBJECT " := { "
-.BR dev " | " port " | " monitor " }"
+.BR dev " | " port " | " monitor " | " region " }"
 .sp
 
 .ti -8
@@ -74,6 +74,10 @@ When combined with -j generate a pretty JSON output.
 .B monitor
 - watch for netlink messages.
 
+.TP
+.B region
+- devlink address region access.
+
 .SS
 .I COMMAND
 
@@ -104,6 +108,7 @@ Exit status is 0 if command was successful or a positive integer upon failure.
 .BR devlink-monitor (8),
 .BR devlink-sb (8),
 .BR devlink-resource (8),
+.BR devlink-region (8),
 .br
 
 .SH REPORTING BUGS
