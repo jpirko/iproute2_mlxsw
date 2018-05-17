@@ -1702,6 +1702,10 @@ static const char *port_flavour_name(uint16_t flavour)
 		return "cpu";
 	case DEVLINK_PORT_FLAVOUR_DSA:
 		return "dsa";
+	case DEVLINK_PORT_FLAVOUR_PF_REP:
+		return "pf_rep";
+	case DEVLINK_PORT_FLAVOUR_VF_REP:
+		return "vf_rep";
 	default:
 		return "<unknown flavour>";
 	}
