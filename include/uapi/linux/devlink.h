@@ -78,6 +78,11 @@ enum devlink_command {
 	 */
 	DEVLINK_CMD_RELOAD,
 
+	DEVLINK_CMD_PARAM_GET,		/* can dump */
+	DEVLINK_CMD_PARAM_SET,
+	DEVLINK_CMD_PARAM_NEW,
+	DEVLINK_CMD_PARAM_DEL,
+
 	/* add new commands above here */
 	__DEVLINK_CMD_MAX,
 	DEVLINK_CMD_MAX = __DEVLINK_CMD_MAX - 1
@@ -141,6 +146,23 @@ enum devlink_port_flavour {
 				   * interconnect port.
 				   */
 };
+
+enum devlink_param_cmode {
+	DEVLINK_PARAM_CMODE_RUNTIME_BIT,
+	DEVLINK_PARAM_CMODE_DRIVERINIT_BIT,
+	DEVLINK_PARAM_CMODE_PERMANENT_BIT,
+
+	/* Add new configuration modes above and add mask #define below */
+	__DEVLINK_PARAM_CMODE_MAX,
+	DEVLINK_PARAM_CMODE_MAX = __DEVLINK_PARAM_CMODE_MAX - 1
+};
+
+#define __DEVLINK_PARAM_CMODE_BIT(bit)	(1UL << (bit))
+#define __DEVLINK_PARAM_CMODE(cmode)	__DEVLINK_PARAM_CMODE_BIT(DEVLINK_PARAM_CMODE_##cmode##_BIT)
+
+#define DEVLINK_PARAM_CMODE_RUNTIME	__DEVLINK_PARAM_CMODE(RUNTIME)
+#define DEVLINK_PARAM_CMODE_DRIVERINIT	__DEVLINK_PARAM_CMODE(DRIVERINIT)
+#define DEVLINK_PARAM_CMODE_PERMANENT	__DEVLINK_PARAM_CMODE(PERMANENT)
 
 enum devlink_attr {
 	/* don't change the order or add anything between, this is ABI! */
@@ -237,6 +259,15 @@ enum devlink_attr {
 	DEVLINK_ATTR_PORT_FLAVOUR,		/* u16 */
 	DEVLINK_ATTR_PORT_NUMBER,		/* u32 */
 	DEVLINK_ATTR_PORT_SPLIT_SUBPORT_NUMBER,	/* u32 */
+
+	DEVLINK_ATTR_PARAM,			/* nested */
+	DEVLINK_ATTR_PARAM_NAME,		/* string */
+	DEVLINK_ATTR_PARAM_GENERIC,		/* flag */
+	DEVLINK_ATTR_PARAM_TYPE,		/* u8 */
+	DEVLINK_ATTR_PARAM_VALUES_LIST,		/* nested */
+	DEVLINK_ATTR_PARAM_VALUE,		/* nested */
+	DEVLINK_ATTR_PARAM_VALUE_DATA,		/* dynamic */
+	DEVLINK_ATTR_PARAM_VALUE_CMODE,		/* u8 */
 
 	/* add new attributes above here, update the policy in devlink.c */
 
