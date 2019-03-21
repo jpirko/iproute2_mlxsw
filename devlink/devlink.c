@@ -414,6 +414,7 @@ static const enum mnl_attr_data_type devlink_policy[DEVLINK_ATTR_MAX + 1] = {
 	[DEVLINK_ATTR_HEALTH_REPORTER_RECOVER_COUNT] = MNL_TYPE_U64,
 	[DEVLINK_ATTR_HEALTH_REPORTER_DUMP_TS] = MNL_TYPE_U64,
 	[DEVLINK_ATTR_HEALTH_REPORTER_GRACEFUL_PERIOD] = MNL_TYPE_U64,
+	[DEVLINK_ATTR_PORT_SWITCH_ID] = MNL_TYPE_BINARY,
 };
 
 static int attr_cb(const struct nlattr *attr, void *data)
@@ -2780,6 +2781,7 @@ static void pr_out_port(struct dl *dl, struct nlattr **tb)
 {
 	struct nlattr *pt_attr = tb[DEVLINK_ATTR_PORT_TYPE];
 	struct nlattr *dpt_attr = tb[DEVLINK_ATTR_PORT_DESIRED_TYPE];
+	SPRINT_BUF(b1);
 
 	pr_out_port_handle_start(dl, tb, false);
 	if (pt_attr) {
@@ -2809,6 +2811,11 @@ static void pr_out_port(struct dl *dl, struct nlattr **tb)
 	if (tb[DEVLINK_ATTR_PORT_SPLIT_GROUP])
 		pr_out_uint(dl, "split_group",
 			    mnl_attr_get_u32(tb[DEVLINK_ATTR_PORT_SPLIT_GROUP]));
+	if (tb[DEVLINK_ATTR_PORT_SWITCH_ID] && dl->verbose)
+		pr_out_str(dl, "switch_id",
+			 hexstring_n2a(mnl_attr_get_payload(tb[DEVLINK_ATTR_PORT_SWITCH_ID]),
+				       mnl_attr_get_payload_len(tb[DEVLINK_ATTR_PORT_SWITCH_ID]),
+						   b1, sizeof(b1)));
 	pr_out_port_handle_end(dl);
 }
 
