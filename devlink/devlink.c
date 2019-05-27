@@ -3849,6 +3849,7 @@ static const char *cmd_name(uint8_t cmd)
 	case DEVLINK_CMD_TRAP_GROUP_SET: return "set";
 	case DEVLINK_CMD_TRAP_GROUP_NEW: return "new";
 	case DEVLINK_CMD_TRAP_GROUP_DEL: return "del";
+	case DEVLINK_CMD_TRAP_REPORT: return "report";
 	default: return "<unknown cmd>";
 	}
 }
@@ -3887,6 +3888,8 @@ static const char *cmd_obj(uint8_t cmd)
 	case DEVLINK_CMD_TRAP_GROUP_NEW:
 	case DEVLINK_CMD_TRAP_GROUP_DEL:
 		return "trap-group";
+	case DEVLINK_CMD_TRAP_REPORT:
+		return "trap-report";
 	default: return "<unknown obj>";
 	}
 }
@@ -3914,6 +3917,7 @@ static bool cmd_filter_check(struct dl *dl, uint8_t cmd)
 static void pr_out_region(struct dl *dl, struct nlattr **tb);
 static void pr_out_trap(struct dl *dl, struct nlattr **tb, bool array);
 static void pr_out_trap_group(struct dl *dl, struct nlattr **tb, bool array);
+static void pr_out_trap_report(struct dl *dl, struct nlattr **tb);
 
 static int cmd_mon_show_cb(const struct nlmsghdr *nlh, void *data)
 {
@@ -3998,6 +4002,18 @@ static int cmd_mon_show_cb(const struct nlmsghdr *nlh, void *data)
 		pr_out_mon_header(genl->cmd);
 		pr_out_trap_group(dl, tb, false);
 		break;
+	case DEVLINK_CMD_TRAP_REPORT:
+		mnl_attr_parse(nlh, sizeof(*genl), attr_cb, tb);
+		if (!tb[DEVLINK_ATTR_BUS_NAME] || !tb[DEVLINK_ATTR_DEV_NAME] ||
+		    !tb[DEVLINK_ATTR_TRAP_NAME] ||
+		    !tb[DEVLINK_ATTR_TRAP_TYPE] ||
+		    !tb[DEVLINK_ATTR_TRAP_GROUP_NAME] ||
+		    !tb[DEVLINK_ATTR_TRAP_PAYLOAD] ||
+		    !tb[DEVLINK_ATTR_TRAP_TIMESTAMP])
+			return MNL_CB_ERROR;
+		pr_out_mon_header(genl->cmd);
+		pr_out_trap_report(dl, tb);
+		break;
 	}
 	return MNL_CB_OK;
 }
@@ -4013,7 +4029,8 @@ static int cmd_mon_show(struct dl *dl)
 		    strcmp(cur_obj, "dev") != 0 &&
 		    strcmp(cur_obj, "port") != 0 &&
 		    strcmp(cur_obj, "trap") != 0 &&
-		    strcmp(cur_obj, "trap-group") != 0) {
+		    strcmp(cur_obj, "trap-group") != 0 &&
+		    strcmp(cur_obj, "trap-report") != 0) {
 			pr_err("Unknown object \"%s\"\n", cur_obj);
 			return -EINVAL;
 		}
@@ -4021,6 +4038,10 @@ static int cmd_mon_show(struct dl *dl)
 	err = _mnlg_socket_group_add(dl->nlg, DEVLINK_GENL_MCGRP_CONFIG_NAME);
 	if (err)
 		return err;
+	/* Do not bail in order to be compatible with old kernels that do not
+	 * support this multicast group.
+	 */
+	mnlg_socket_group_add(dl->nlg, DEVLINK_GENL_MCGRP_TRAP_NAME);
 	err = _mnlg_socket_recv_run(dl->nlg, cmd_mon_show_cb, dl);
 	if (err)
 		return err;
@@ -4030,7 +4051,7 @@ static int cmd_mon_show(struct dl *dl)
 static void cmd_mon_help(void)
 {
 	pr_err("Usage: devlink monitor [ all | OBJECT-LIST ]\n"
-	       "where  OBJECT-LIST := { dev | port | trap | trap-group }\n");
+	       "where  OBJECT-LIST := { dev | port | trap | trap-group | trap-report }\n");
 }
 
 static int cmd_mon(struct dl *dl)
@@ -6486,6 +6507,60 @@ static const char *trap_metadata_name(const struct nlattr *attr)
 		return "<unknown metadata type>";
 	}
 }
+
+static void pr_out_trap_report_timestamp(struct dl *dl,
+					 const struct nlattr *attr)
+{
+	struct timespec *ts;
+	struct tm *tm;
+	char buf[80];
+	char *tstr;
+
+	ts = mnl_attr_get_payload(attr);
+	tm = localtime(&ts->tv_sec);
+
+	tstr = asctime(tm);
+	tstr[strlen(tstr) - 1] = 0;
+	snprintf(buf, sizeof(buf), "%s %09ld nsec", tstr, ts->tv_nsec);
+
+	pr_out_str(dl, "timestamp", buf);
+}
+
+static void pr_out_trap_report_port(struct dl *dl, struct nlattr *attr,
+				    const char *name, struct nlattr **tb)
+{
+	int err;
+
+	if (!dl->verbose)
+		return;
+
+	err = mnl_attr_parse_nested(attr, attr_cb, tb);
+	if (err != MNL_CB_OK)
+		return;
+
+	pr_out_object_start(dl, name);
+	pr_out_port(dl, tb);
+	pr_out_object_end(dl);
+}
+
+static void pr_out_trap_report(struct dl *dl, struct nlattr **tb)
+{
+	uint8_t type = mnl_attr_get_u8(tb[DEVLINK_ATTR_TRAP_TYPE]);
+
+	__pr_out_handle_start(dl, tb, true, false);
+	pr_out_str(dl, "name", mnl_attr_get_str(tb[DEVLINK_ATTR_TRAP_NAME]));
+	pr_out_str(dl, "type", trap_type_name(type));
+	pr_out_str(dl, "group",
+		   mnl_attr_get_str(tb[DEVLINK_ATTR_TRAP_GROUP_NAME]));
+	pr_out_uint(dl, "length",
+		    mnl_attr_get_payload_len(tb[DEVLINK_ATTR_TRAP_PAYLOAD]));
+	pr_out_trap_report_timestamp(dl, tb[DEVLINK_ATTR_TRAP_TIMESTAMP]);
+	if (tb[DEVLINK_ATTR_TRAP_IN_PORT])
+		pr_out_trap_report_port(dl, tb[DEVLINK_ATTR_TRAP_IN_PORT],
+					"input_port", tb);
+	pr_out_handle_end(dl);
+}
+
 static void pr_out_trap_metadata(struct dl *dl, struct nlattr *attr)
 {
 	struct nlattr *attr_metadata;
