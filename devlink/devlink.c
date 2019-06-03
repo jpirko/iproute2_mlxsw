@@ -140,6 +140,19 @@ static int _mnlg_socket_group_add(struct mnlg_socket *nlg,
 	return 0;
 }
 
+static int _mnlg_socket_setsockopt(struct mnlg_socket *nlg, int type,
+				   void *buf, socklen_t len)
+{
+	int err;
+
+	err = mnlg_socket_setsockopt(nlg, type, buf, len);
+	if (err < 0) {
+		pr_err("Failed to call mnlg_socket_setsockopt\n");
+		return -errno;
+	}
+	return 0;
+}
+
 struct ifname_map {
 	struct list_head list;
 	char *bus_name;
@@ -4020,7 +4033,7 @@ static int cmd_mon_show_cb(const struct nlmsghdr *nlh, void *data)
 
 static int cmd_mon_show(struct dl *dl)
 {
-	int err;
+	int err, one = 1;
 	unsigned int index = 0;
 	const char *cur_obj;
 
@@ -4035,6 +4048,13 @@ static int cmd_mon_show(struct dl *dl)
 			return -EINVAL;
 		}
 	}
+	/* It is possible to lose some events if we are not draining the socket
+	 * receive buffer fast enough. Keep processing events and do not abort.
+	 */
+	err = _mnlg_socket_setsockopt(dl->nlg, NETLINK_NO_ENOBUFS, &one,
+				      sizeof(one));
+	if (err)
+		return err;
 	err = _mnlg_socket_group_add(dl->nlg, DEVLINK_GENL_MCGRP_CONFIG_NAME);
 	if (err)
 		return err;

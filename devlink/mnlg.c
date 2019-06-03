@@ -224,6 +224,18 @@ int mnlg_socket_group_add(struct mnlg_socket *nlg, const char *group_name)
 	return 0;
 }
 
+int mnlg_socket_setsockopt(struct mnlg_socket *nlg, int type, void *buf,
+			   socklen_t len)
+{
+	int err;
+
+	err = mnl_socket_setsockopt(nlg->nl, type, buf, len);
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+
 static int get_family_id_attr_cb(const struct nlattr *attr, void *data)
 {
 	const struct nlattr **tb = data;
