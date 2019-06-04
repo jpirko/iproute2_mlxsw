@@ -58,6 +58,7 @@ static int g_new_line_count;
 		}						\
 		fprintf(stdout, ##args);			\
 		g_new_line_count = 0;				\
+		fflush(stdout);					\
 	} while (0)
 
 #define pr_out_sp(num, args...)					\
@@ -66,6 +67,7 @@ static int g_new_line_count;
 		if (ret < num)					\
 			fprintf(stdout, "%*s", num - ret, "");	\
 		g_new_line_count = 0;				\
+		fflush(stdout);					\
 	} while (0)
 
 static int g_indent_level;
