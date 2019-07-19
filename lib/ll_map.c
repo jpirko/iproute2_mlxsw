@@ -70,7 +70,7 @@ static struct ll_cache *ll_get_by_name(const char *name)
 		struct ll_cache *im
 			= container_of(n, struct ll_cache, name_hash);
 
-		if (strncmp(im->name, name, IFNAMSIZ) == 0)
+		if (strcmp(im->name, name) == 0)
 			return im;
 	}
 
@@ -240,6 +240,43 @@ int ll_index_to_flags(unsigned idx)
 	return im ? im->flags : -1;
 }
 
+static int altnametoindex(const char *name)
+{
+	struct {
+		struct nlmsghdr		n;
+		struct ifinfomsg	ifm;
+		char			buf[1024];
+	} req = {
+		.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg)),
+		.n.nlmsg_flags = NLM_F_REQUEST,
+		.n.nlmsg_type = RTM_GETLINK,
+	};
+	struct rtnl_handle rth = {};
+	struct nlmsghdr *answer;
+	struct ifinfomsg *ifm;
+	int rc = 0;
+
+	if (rtnl_open(&rth, 0) < 0)
+		return 0;
+
+	addattr32(&req.n, sizeof(req), IFLA_EXT_MASK,
+		  RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS);
+	addattr_l(&req.n, sizeof(req), IFLA_ALT_IFNAME, name, strlen(name) + 1);
+
+	if (rtnl_talk_suppress_rtnl_errmsg(&rth, &req.n, &answer) < 0)
+		goto out;
+
+	ifm = NLMSG_DATA(answer);
+	rc = ifm->ifi_index;
+
+	free(answer);
+
+	rtnl_close(&rth);
+out:
+	return rc;
+}
+
+
 unsigned ll_name_to_index(const char *name)
 {
 	const struct ll_cache *im;
@@ -257,6 +294,8 @@ unsigned ll_name_to_index(const char *name)
 		idx = if_nametoindex(name);
 	if (idx == 0)
 		idx = ll_idx_a2n(name);
+	if (idx == 0)
+		idx = altnametoindex(name);
 	return idx;
 }
 
