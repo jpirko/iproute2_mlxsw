@@ -23,7 +23,7 @@ static void explain(void)
 
 static void cexplain(void)
 {
-	fprintf(stderr, "Usage: ... ets [quantum Q1]\n");
+	fprintf(stderr, "Usage: ... ets [quantum Q1] [prio P1 P2 ...]\n");
 }
 
 static unsigned int parse_quantum(const char *arg)
@@ -191,7 +191,11 @@ static int ets_parse_copt(struct qdisc_util *qu, int argc, char **argv,
 			  struct nlmsghdr *n, const char *dev)
 {
 	unsigned int quantum = 0;
-	struct rtattr *tail;
+	bool priolist_mode = false;
+	unsigned int priolist_len = 0;
+	__u8 priolist[TC_PRIO_MAX + 1];
+	struct rtattr *tail, *nest;
+	int i;
 
 	while (argc > 0) {
 		if (strcmp(*argv, "quantum") == 0) {
@@ -203,9 +207,35 @@ static int ets_parse_copt(struct qdisc_util *qu, int argc, char **argv,
 			quantum = parse_quantum(*argv);
 			if (!quantum)
 				return -1;
+			priolist_mode = false;
+		} else if (strcmp(*argv, "prio") == 0) {
+			if (priolist_len) {
+				fprintf(stderr, "Duplicate \"prio\"\n");
+				return -1;
+			}
+			NEXT_ARG();
+			priolist_mode = true;
+			goto parse_priolist;
 		} else if (strcmp(*argv, "help") == 0) {
 			cexplain();
 			return -1;
+		} else if (priolist_mode) {
+			unsigned int prio;
+
+parse_priolist:
+			if (get_unsigned(&prio, *argv, 10)) {
+				fprintf(stderr, "Illegal \"prio\" element\n");
+				return -1;
+			}
+			if (prio > TC_PRIO_MAX) {
+				fprintf(stderr, "\"prio\" value cannot be higher than %u\n", TC_PRIO_MAX);
+				return -1;
+			}
+			if (priolist_len > TC_PRIO_MAX) {
+				fprintf(stderr, "Too many priorities in \"prio\"\n");
+				return -1;
+			}
+			priolist[priolist_len++] = prio;
 		} else {
 			fprintf(stderr, "What is \"%s\"?\n", *argv);
 			cexplain();
@@ -218,6 +248,13 @@ static int ets_parse_copt(struct qdisc_util *qu, int argc, char **argv,
 	if (quantum)
 		addattr_l(n, 1024, TCA_ETS_QUANTA_BAND, &quantum,
 			  sizeof(quantum));
+	if (priolist_len) {
+		nest = addattr_nest(n, 1024, TCA_ETS_PRIOLIST | NLA_F_NESTED);
+		for (i = 0; i < priolist_len; i++)
+			addattr_l(n, 1024, TCA_ETS_PRIOLIST_PRIO,
+				  &priolist[i], sizeof(priolist[0]));
+		addattr_nest_end(n, nest);
+	}
 	addattr_nest_end(n, tail);
 
 	return 0;

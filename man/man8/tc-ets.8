@@ -14,6 +14,8 @@ band band band...
 
 .B tc class ... ets [ quantum
 bytes
+.B ] [ prio
+value value value...
 .B ]
 
 .SH DESCRIPTION
@@ -76,7 +78,7 @@ to:
 - As a last resort, the ETS qdisc consults its priomap (see below), which
   maps packets to bands based on packet priority.
 
-.SH PARAMETERS
+.SH QDISC PARAMETERS
 .TP
 strict
 The number of bands that should be created in strict mode. If not given,
@@ -121,6 +123,19 @@ There can be up to 16 numbers in the list. If there are fewer, the default
 band that traffic with one of the unmentioned priorities goes to is the
 last one.
 
+.SH CLASS PARAMETERS
+.TP
+quantum
+It is possible to change the quantum assigned to a band, if it is a
+bandwidth-sharing band.
+
+.TP
+prio
+List of priorities that should be assigned to this class in ETS priomap. The
+effect is that the priomap values corresponding to priorities listed in the
+"prio" section will be set to the band number of this class (0 for the first
+band, 1 for the second, etc.).
+
 .SH EXAMPLE & USAGE
 
 .P
@@ -148,6 +163,17 @@ bands):
 # tc qdisc show dev eth0
 .br
 qdisc ets 1: root refcnt 2 bands 8 quanta 2650 1514 1514 1514 1514 1514 1514 1514 priomap 7 6 5 4 3 2 1 0 7 7 7 7 7 7 7 7
+
+.P
+Change the priomap to assign priorities 13, 14 and 15 to band 0. Note that
+priority 8, which is already assigned to band 0, stays that way:
+
+.P
+# tc class change dev eth0 classid 1:1 ets prio 13 14 15
+.br
+# tc qdisc show dev eth0
+.br
+qdisc ets 1: root refcnt 2 bands 8 quanta 2650 1514 1514 1514 1514 1514 1514 1514 priomap 7 6 5 4 3 2 1 0 7 7 7 7 7 0 0 0
 
 .P
 Create a purely strict Qdisc with reverse 1:1 mapping between priorities
