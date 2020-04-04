@@ -4953,15 +4953,19 @@ static int cmd_dpipe_headers_show(struct dl *dl)
 	return err;
 }
 
-static void cmd_dpipe_header_help(void)
+static void cmd_dpipe_help(void)
 {
-	pr_err("Usage: devlink dpipe headers show DEV\n");
+	pr_err("Usage: devlink dpipe table show DEV [ name TABLE_NAME ]\n");
+	pr_err("       devlink dpipe table set DEV name TABLE_NAME\n");
+	pr_err("                               [ counters_enabled { true | false } ]\n");
+	pr_err("       devlink dpipe table dump DEV name TABLE_NAME\n");
+	pr_err("       devlink dpipe header show DEV\n");
 }
 
 static int cmd_dpipe_header(struct dl *dl)
 {
 	if (dl_argv_match(dl, "help") || dl_no_arg(dl)) {
-		cmd_dpipe_header_help();
+		cmd_dpipe_help();
 		return 0;
 	} else if (dl_argv_match(dl, "show")) {
 		dl_arg_inc(dl);
@@ -5777,16 +5781,10 @@ out:
 	return err;
 }
 
-static void cmd_dpipe_table_help(void)
-{
-	pr_err("Usage: devlink dpipe table [ OBJECT-LIST ]\n"
-	       "where  OBJECT-LIST := { show | set | dump }\n");
-}
-
 static int cmd_dpipe_table(struct dl *dl)
 {
 	if (dl_argv_match(dl, "help") || dl_no_arg(dl)) {
-		cmd_dpipe_table_help();
+		cmd_dpipe_help();
 		return 0;
 	} else if (dl_argv_match(dl, "show")) {
 		dl_arg_inc(dl);
@@ -5800,12 +5798,6 @@ static int cmd_dpipe_table(struct dl *dl)
 	}
 	pr_err("Command \"%s\" not found\n", dl_argv(dl));
 	return -ENOENT;
-}
-
-static void cmd_dpipe_help(void)
-{
-	pr_err("Usage: devlink dpipe [ OBJECT-LIST ]\n"
-	       "where  OBJECT-LIST := { header | table }\n");
 }
 
 static int cmd_dpipe(struct dl *dl)
