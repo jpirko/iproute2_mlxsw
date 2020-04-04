@@ -1,0 +1,83 @@
+.TH DEVLINK\-DPIPE 8 "4 Apr 2020" "iproute2" "Linux"
+.SH NAME
+devlink-dpipe \- devlink dataplane pipeline visualization 
+.SH SYNOPSIS
+.sp
+.ad l
+.in +8
+.ti -8
+.B devlink
+.RI "[ " OPTIONS " ]"
+.B dpipe  
+.RB "{ " table " | " header " }"
+.RI "{ " COMMAND " | "
+.BR help " }"
+.sp
+
+.ti -8
+.IR OPTIONS " := { "
+\fB\-V\fR[\fIersion\fR] }
+
+.ti -8
+.BI "devlink dpipe table show " DEV
+.R [
+.BI name " TABLE_NAME "
+.R ]
+
+.ti -8
+.BI "devlink dpipe table set " DEV
+.BI name " TABLE_NAME "
+
+.ti -8
+.BI "devlink dpipe table dump " DEV
+.BI name " TABLE_NAME "
+
+.ti -8
+.BI "devlink dpipe header show " DEV
+
+.ti -8
+.B devlink dpipe help
+
+.SH "DESCRIPTION"
+.SS devlink dpipe table show - display devlink dpipe table attributes
+
+.TP
+.BI name " TABLE_NAME"
+Specifies the table to operate on.
+
+.SH "EXAMPLES"
+.PP
+devlink dpipe table show
+.RS 4
+Shows all dpipe tables on the system.
+.RE
+.PP
+devlink dpipe table show pci/0000:01:00.0
+.RS 4
+Shows all dpipe tables on specified devlink device.
+.RE
+.PP
+devlink port set pci/0000:01:00.0/1 type eth
+.RS 4
+Set type of specified devlink port to Ethernet.
+.RE
+.PP
+devlink port split pci/0000:01:00.0/1 count 4
+.RS 4
+Split the specified devlink port into four ports.
+.RE
+.PP
+devlink port unsplit pci/0000:01:00.0/1
+.RS 4
+Unplit the specified previously split devlink port.
+.RE
+
+.SH SEE ALSO
+.BR devlink (8),
+.BR devlink-dev (8),
+.BR devlink-sb (8),
+.BR devlink-monitor (8),
+.br
+
+.SH AUTHOR
+Jiri Pirko <jiri@mellanox.com>
