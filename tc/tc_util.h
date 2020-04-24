@@ -68,10 +68,18 @@ struct exec_util {
 	int (*parse_eopt)(struct exec_util *eu, int argc, char **argv);
 };
 
+struct qevent_util {
+	struct qevent_util *next;
+	const char *id;
+	int (*parse_qevent)(struct qevent_util *qe, int *p_argc, char ***argv,
+			    struct nlmsghdr *n);
+};
+
 const char *get_tc_lib(void);
 
 struct qdisc_util *get_qdisc_kind(const char *str);
 struct filter_util *get_filter_kind(const char *str);
+struct qevent_util *get_qevent_kind(const char *str);
 
 int get_qdisc_handle(__u32 *h, const char *str);
 int get_rate(unsigned int *rate, const char *str);

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 TCOBJ= tc.o tc_qdisc.o tc_class.o tc_filter.o tc_util.o tc_monitor.o \
-       tc_exec.o m_police.o m_estimator.o m_action.o m_ematch.o \
+       tc_exec.o tc_qevent.o m_police.o m_estimator.o m_action.o m_ematch.o \
        emp_ematch.tab.o emp_ematch.lex.o
 
 include ../config.mk
@@ -81,6 +81,7 @@ TCMODULES += q_etf.o
 TCMODULES += q_taprio.o
 TCMODULES += q_plug.o
 TCMODULES += q_ets.o
+TCMODULES += qe_drop.o
 
 TCSO :=
 ifeq ($(TC_CONFIG_ATM),y)

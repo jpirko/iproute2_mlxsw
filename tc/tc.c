@@ -50,6 +50,7 @@ struct rtnl_handle rth;
 
 static struct qdisc_util *qdisc_list;
 static struct filter_util *filter_list;
+static struct qevent_util *qevent_list;
 
 static int print_noqopt(struct qdisc_util *qu, FILE *f,
 			struct rtattr *opt)
@@ -161,13 +162,30 @@ noexist:
 	return q;
 }
 
+struct qevent_util *get_qevent_kind(const char *str)
+{
+	struct qevent_util *qe;
+
+	for (qe = qevent_list; qe; qe = qe->next)
+		if (strcmp(qe->id, str) == 0)
+			return qe;
+
+	qe = get_symbol("qe", "%s_qevent_util", str);
+	if (qe == NULL)
+		return NULL;
+
+	qe->next = qevent_list;
+	qevent_list = qe;
+	return qe;
+}
+
 static void usage(void)
 {
 	fprintf(stderr,
 		"Usage:	tc [ OPTIONS ] OBJECT { COMMAND | help }\n"
 		"	tc [-force] -batch filename\n"
 		"where  OBJECT := { qdisc | class | filter | chain |\n"
-		"		    action | monitor | exec }\n"
+		"		    action | monitor | exec | qevent }\n"
 		"       OPTIONS := { -V[ersion] | -s[tatistics] | -d[etails] | -r[aw] |\n"
 		"		    -o[neline] | -j[son] | -p[retty] | -c[olor]\n"
 		"		    -b[atch] [filename] | -n[etns] name | -N[umeric] |\n"
@@ -190,6 +208,8 @@ static int do_cmd(int argc, char **argv)
 		return do_tcmonitor(argc-1, argv+1);
 	if (matches(*argv, "exec") == 0)
 		return do_exec(argc-1, argv+1);
+	if (matches(*argv, "qevent") == 0)
+		return do_qevent(argc-1, argv+1);
 	if (matches(*argv, "help") == 0) {
 		usage();
 		return 0;

@@ -12,6 +12,7 @@ int do_chain(int argc, char **argv);
 int do_action(int argc, char **argv);
 int do_tcmonitor(int argc, char **argv);
 int do_exec(int argc, char **argv);
+int do_qevent(int argc, char **argv);
 
 int print_action(struct nlmsghdr *n, void *arg);
 int print_filter(struct nlmsghdr *n, void *arg);
