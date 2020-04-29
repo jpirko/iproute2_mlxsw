@@ -17,7 +17,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
-#include <dlfcn.h>
 #include <stdarg.h>
 #include <errno.h>
 
@@ -129,9 +128,6 @@ out:
 
 static struct ematch_util *get_ematch_kind(char *kind)
 {
-	static void *body;
-	void *dlh;
-	char buf[256];
 	struct ematch_util *e;
 
 	for (e = ematch_list; e; e = e->next) {
@@ -139,19 +135,7 @@ static struct ematch_util *get_ematch_kind(char *kind)
 			return e;
 	}
 
-	snprintf(buf, sizeof(buf), "em_%s.so", kind);
-	dlh = dlopen(buf, RTLD_LAZY);
-	if (dlh == NULL) {
-		dlh = body;
-		if (dlh == NULL) {
-			dlh = body = dlopen(NULL, RTLD_LAZY);
-			if (dlh == NULL)
-				return NULL;
-		}
-	}
-
-	snprintf(buf, sizeof(buf), "%s_ematch_util", kind);
-	e = dlsym(dlh, buf);
+	e = get_symbol("em", "%s_ematch_util", kind);
 	if (e == NULL)
 		return NULL;
 

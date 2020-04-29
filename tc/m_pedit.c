@@ -23,7 +23,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
-#include <dlfcn.h>
 #include "utils.h"
 #include "tc_util.h"
 #include "m_pedit.h"
@@ -77,9 +76,6 @@ static int pedit_parse_nopopt(int *argc_p, char ***argv_p,
 
 static struct m_pedit_util *get_pedit_kind(const char *str)
 {
-	static void *pBODY;
-	void *dlh;
-	char buf[256];
 	struct m_pedit_util *p;
 
 	for (p = pedit_list; p; p = p->next) {
@@ -87,19 +83,7 @@ static struct m_pedit_util *get_pedit_kind(const char *str)
 			return p;
 	}
 
-	snprintf(buf, sizeof(buf), "p_%s.so", str);
-	dlh = dlopen(buf, RTLD_LAZY);
-	if (dlh == NULL) {
-		dlh = pBODY;
-		if (dlh == NULL) {
-			dlh = pBODY = dlopen(NULL, RTLD_LAZY);
-			if (dlh == NULL)
-				goto noexist;
-		}
-	}
-
-	snprintf(buf, sizeof(buf), "p_pedit_%s", str);
-	p = dlsym(dlh, buf);
+	p = get_symbol("p", "p_pedit_%s", str);
 	if (p == NULL)
 		goto noexist;
 

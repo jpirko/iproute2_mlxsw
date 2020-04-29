@@ -22,7 +22,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
-#include <dlfcn.h>
 
 #include "utils.h"
 #include "tc_common.h"
@@ -88,9 +87,6 @@ static int parse_noaopt(struct action_util *au, int *argc_p,
 
 static struct action_util *get_action_kind(char *str)
 {
-	static void *aBODY;
-	void *dlh;
-	char buf[256];
 	struct action_util *a;
 #ifdef CONFIG_GACT
 	int looked4gact = 0;
@@ -101,19 +97,7 @@ restart_s:
 			return a;
 	}
 
-	snprintf(buf, sizeof(buf), "%s/m_%s.so", get_tc_lib(), str);
-	dlh = dlopen(buf, RTLD_LAZY | RTLD_GLOBAL);
-	if (dlh == NULL) {
-		dlh = aBODY;
-		if (dlh == NULL) {
-			dlh = aBODY = dlopen(NULL, RTLD_LAZY);
-			if (dlh == NULL)
-				goto noexist;
-		}
-	}
-
-	snprintf(buf, sizeof(buf), "%s_action_util", str);
-	a = dlsym(dlh, buf);
+	a = get_symbol("m", "%s_action_util", str);
 	if (a == NULL)
 		goto noexist;
 

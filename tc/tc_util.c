@@ -21,6 +21,7 @@
 #include <string.h>
 #include <math.h>
 #include <errno.h>
+#include <dlfcn.h>
 
 #include "utils.h"
 #include "names.h"
@@ -1013,4 +1014,32 @@ void print_masked_be16(const char *name, struct rtattr *attr,
 {
 	print_masked_type(UINT16_MAX, __rta_getattr_be16_u32, name, attr,
 			  mask_attr, newline);
+}
+
+void *get_symbol(const char *dso_prefix,
+		 const char *symbol_fmt,
+		 const char *str)
+{
+	static void *body;	/* cached handle dlopen(NULL) */
+	void *dlh;
+	char buf[256];
+
+	snprintf(buf, sizeof(buf), "%s/%s_%s.so",
+		 get_tc_lib(), dso_prefix, str);
+	dlh = dlopen(buf, RTLD_LAZY);
+	if (!dlh) {
+		/* look in current binary, only open once */
+		dlh = body;
+		if (dlh == NULL) {
+			dlh = body = dlopen(NULL, RTLD_LAZY);
+			if (dlh == NULL)
+				return NULL;
+		}
+	}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+	snprintf(buf, sizeof(buf), symbol_fmt, str);
+#pragma GCC diagnostic pop
+	return dlsym(dlh, buf);
 }

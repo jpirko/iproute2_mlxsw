@@ -11,7 +11,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <dlfcn.h>
 
 #include "utils.h"
 
@@ -19,7 +18,6 @@
 #include "tc_common.h"
 
 static struct exec_util *exec_list;
-static void *BODY;
 
 static void usage(void)
 {
@@ -44,26 +42,12 @@ static int parse_noeopt(struct exec_util *eu, int argc, char **argv)
 static struct exec_util *get_exec_kind(const char *name)
 {
 	struct exec_util *eu;
-	char buf[256];
-	void *dlh;
 
 	for (eu = exec_list; eu; eu = eu->next)
 		if (strcmp(eu->id, name) == 0)
 			return eu;
 
-	snprintf(buf, sizeof(buf), "%s/e_%s.so", get_tc_lib(), name);
-	dlh = dlopen(buf, RTLD_LAZY);
-	if (dlh == NULL) {
-		dlh = BODY;
-		if (dlh == NULL) {
-			dlh = BODY = dlopen(NULL, RTLD_LAZY);
-			if (dlh == NULL)
-				goto noexist;
-		}
-	}
-
-	snprintf(buf, sizeof(buf), "%s_exec_util", name);
-	eu = dlsym(dlh, buf);
+	eu = get_symbol("e", "%s_exec_util", name);
 	if (eu == NULL)
 		goto noexist;
 reg:

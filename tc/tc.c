@@ -17,7 +17,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <dlfcn.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -49,7 +48,6 @@ static char *conf_file;
 
 struct rtnl_handle rth;
 
-static void *BODY;	/* cached handle dlopen(NULL) */
 static struct qdisc_util *qdisc_list;
 static struct filter_util *filter_list;
 
@@ -109,28 +107,13 @@ static int parse_nofopt(struct filter_util *qu, char *fhandle,
 
 struct qdisc_util *get_qdisc_kind(const char *str)
 {
-	void *dlh;
-	char buf[256];
 	struct qdisc_util *q;
 
 	for (q = qdisc_list; q; q = q->next)
 		if (strcmp(q->id, str) == 0)
 			return q;
 
-	snprintf(buf, sizeof(buf), "%s/q_%s.so", get_tc_lib(), str);
-	dlh = dlopen(buf, RTLD_LAZY);
-	if (!dlh) {
-		/* look in current binary, only open once */
-		dlh = BODY;
-		if (dlh == NULL) {
-			dlh = BODY = dlopen(NULL, RTLD_LAZY);
-			if (dlh == NULL)
-				goto noexist;
-		}
-	}
-
-	snprintf(buf, sizeof(buf), "%s_qdisc_util", str);
-	q = dlsym(dlh, buf);
+	q = get_symbol("q", "%s_qdisc_util", str);
 	if (q == NULL)
 		goto noexist;
 
@@ -153,27 +136,13 @@ noexist:
 
 struct filter_util *get_filter_kind(const char *str)
 {
-	void *dlh;
-	char buf[256];
 	struct filter_util *q;
 
 	for (q = filter_list; q; q = q->next)
 		if (strcmp(q->id, str) == 0)
 			return q;
 
-	snprintf(buf, sizeof(buf), "%s/f_%s.so", get_tc_lib(), str);
-	dlh = dlopen(buf, RTLD_LAZY);
-	if (dlh == NULL) {
-		dlh = BODY;
-		if (dlh == NULL) {
-			dlh = BODY = dlopen(NULL, RTLD_LAZY);
-			if (dlh == NULL)
-				goto noexist;
-		}
-	}
-
-	snprintf(buf, sizeof(buf), "%s_filter_util", str);
-	q = dlsym(dlh, buf);
+	q = get_symbol("f", "%s_filter_util", str);
 	if (q == NULL)
 		goto noexist;
 
