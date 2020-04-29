@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+#include <stdbool.h>
 
 #define TCA_BUF_MAX	(64*1024)
 
