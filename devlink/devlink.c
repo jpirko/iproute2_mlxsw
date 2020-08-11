@@ -303,6 +303,8 @@ static void ifname_map_free(struct ifname_map *ifname_map)
 #define DL_OPT_HEALTH_REPORTER_AUTO_DUMP     BIT(37)
 #define DL_OPT_PORT_FUNCTION_HW_ADDR BIT(38)
 #define DL_OPT_FLASH_OVERWRITE		BIT(39)
+#define DL_OPT_METRIC_NAME	BIT(40)
+#define DL_OPT_METRIC_GROUP	BIT(41)
 
 struct dl_opts {
 	uint64_t present; /* flags of present items */
@@ -351,6 +353,8 @@ struct dl_opts {
 	char port_function_hw_addr[MAX_ADDR_LEN];
 	uint32_t port_function_hw_addr_len;
 	uint32_t overwrite_mask;
+	const char *metric_name;
+	uint32_t metric_group;
 };
 
 struct dl {
@@ -680,6 +684,10 @@ static const enum mnl_attr_data_type devlink_policy[DEVLINK_ATTR_MAX + 1] = {
 	[DEVLINK_ATTR_TRAP_POLICER_ID] = MNL_TYPE_U32,
 	[DEVLINK_ATTR_TRAP_POLICER_RATE] = MNL_TYPE_U64,
 	[DEVLINK_ATTR_TRAP_POLICER_BURST] = MNL_TYPE_U64,
+	[DEVLINK_ATTR_METRIC_NAME] = MNL_TYPE_STRING,
+	[DEVLINK_ATTR_METRIC_TYPE] = MNL_TYPE_U8,
+	[DEVLINK_ATTR_METRIC_COUNTER_VALUE] = MNL_TYPE_U64,
+	[DEVLINK_ATTR_METRIC_GROUP] = MNL_TYPE_U32,
 };
 
 static const enum mnl_attr_data_type
@@ -1374,6 +1382,8 @@ static const struct dl_args_metadata dl_args_required[] = {
 	{DL_OPT_TRAP_NAME,            "Trap's name is expected."},
 	{DL_OPT_TRAP_GROUP_NAME,      "Trap group's name is expected."},
 	{DL_OPT_PORT_FUNCTION_HW_ADDR, "Port function's hardware address is expected."},
+	{DL_OPT_METRIC_NAME,	       "Metric's name is expected."},
+	{DL_OPT_METRIC_GROUP,	       "Metric group's number is expected."}
 };
 
 static int dl_args_finding_required_validate(uint64_t o_required,
@@ -1768,7 +1778,20 @@ static int dl_argv_parse(struct dl *dl, uint64_t o_required,
 			if (err)
 				return err;
 			o_found |= DL_OPT_PORT_FUNCTION_HW_ADDR;
-
+		} else if (dl_argv_match(dl, "metric") &&
+			   (o_all & DL_OPT_METRIC_NAME)) {
+			dl_arg_inc(dl);
+			err = dl_argv_str(dl, &opts->metric_name);
+			if (err)
+				return err;
+			o_found |= DL_OPT_METRIC_NAME;
+		} else if (dl_argv_match(dl, "group") &&
+			   (o_all & DL_OPT_METRIC_GROUP)) {
+			dl_arg_inc(dl);
+			err = dl_argv_uint32_t(dl, &opts->metric_group);
+			if (err)
+				return err;
+			o_found |= DL_OPT_METRIC_GROUP;
 		} else {
 			pr_err("Unknown option \"%s\"\n", dl_argv(dl));
 			return -EINVAL;
@@ -1936,6 +1959,12 @@ static void dl_opts_put(struct nlmsghdr *nlh, struct dl *dl)
 				 opts->trap_policer_burst);
 	if (opts->present & DL_OPT_PORT_FUNCTION_HW_ADDR)
 		dl_function_attr_put(nlh, opts);
+	if (opts->present & DL_OPT_METRIC_NAME)
+		mnl_attr_put_strz(nlh, DEVLINK_ATTR_METRIC_NAME,
+				  opts->metric_name);
+	if (opts->present & DL_OPT_METRIC_GROUP)
+		mnl_attr_put_u32(nlh, DEVLINK_ATTR_METRIC_GROUP,
+				 opts->metric_group);
 }
 
 static int dl_argv_parse_put(struct nlmsghdr *nlh, struct dl *dl,
@@ -1999,6 +2028,8 @@ static void cmd_dev_help(void)
 	pr_err("       devlink dev reload DEV [ netns { PID | NAME | ID } ]\n");
 	pr_err("       devlink dev info [ DEV ]\n");
 	pr_err("       devlink dev flash DEV file PATH [ component NAME ] [ overwrite SECTION ]\n");
+	pr_err("       devlink dev metric show [ DEV metric METRIC | group GROUP ]\n");
+	pr_err("       devlink dev metric set DEV metric METRIC [ group GROUP ]\n");
 }
 
 static bool cmp_arr_last_handle(struct dl *dl, const char *bus_name,
@@ -3313,6 +3344,127 @@ out:
 	return err;
 }
 
+static const char *metric_type_name(uint8_t type)
+{
+	switch (type) {
+	case DEVLINK_METRIC_TYPE_COUNTER:
+		return "counter";
+	default:
+		return "<unknown type>";
+	}
+}
+
+static void pr_out_metric(struct dl *dl, struct nlattr **tb, bool array)
+{
+	uint8_t type = mnl_attr_get_u8(tb[DEVLINK_ATTR_METRIC_TYPE]);
+
+	if (array)
+		pr_out_handle_start_arr(dl, tb);
+	else
+		__pr_out_handle_start(dl, tb, true, false);
+
+	check_indent_newline(dl);
+	print_string(PRINT_ANY, "metric", " metric %s",
+		     mnl_attr_get_str(tb[DEVLINK_ATTR_METRIC_NAME]));
+	print_string(PRINT_ANY, "type", " type %s", metric_type_name(type));
+	print_uint(PRINT_ANY, "group", " group %u",
+		   mnl_attr_get_u32(tb[DEVLINK_ATTR_METRIC_GROUP]));
+	if (dl->stats) {
+		if (tb[DEVLINK_ATTR_METRIC_COUNTER_VALUE]) {
+			enum devlink_attr attr;
+
+			attr = DEVLINK_ATTR_METRIC_COUNTER_VALUE;
+			pr_out_u64(dl, "value", mnl_attr_get_u64(tb[attr]));
+		}
+	}
+	pr_out_handle_end(dl);
+}
+
+static int cmd_dev_metric_show_cb(const struct nlmsghdr *nlh, void *data)
+{
+	struct genlmsghdr *genl = mnl_nlmsg_get_payload(nlh);
+	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+	struct dl *dl = data;
+
+	mnl_attr_parse(nlh, sizeof(*genl), attr_cb, tb);
+	if (!tb[DEVLINK_ATTR_BUS_NAME] || !tb[DEVLINK_ATTR_DEV_NAME] ||
+	    !tb[DEVLINK_ATTR_METRIC_NAME] || !tb[DEVLINK_ATTR_METRIC_TYPE] ||
+	    !tb[DEVLINK_ATTR_METRIC_GROUP])
+		return MNL_CB_ERROR;
+	pr_out_metric(dl, tb, true);
+	return MNL_CB_OK;
+}
+
+static int cmd_dev_metric_set(struct dl *dl)
+{
+	uint16_t flags = NLM_F_REQUEST | NLM_F_ACK;
+	struct nlmsghdr *nlh;
+	int err;
+
+	nlh = mnlg_msg_prepare(dl->nlg, DEVLINK_CMD_METRIC_SET, flags);
+
+	err = dl_argv_parse_put(nlh, dl, DL_OPT_HANDLE | DL_OPT_METRIC_NAME,
+				DL_OPT_METRIC_GROUP);
+	if (err)
+		return err;
+
+	return _mnlg_socket_sndrcv(dl->nlg, nlh, NULL, NULL);
+}
+
+static int cmd_dev_metric_show(struct dl *dl)
+{
+	uint16_t flags = NLM_F_REQUEST | NLM_F_ACK;
+	struct nlmsghdr *nlh;
+	int err;
+
+	if (dl_argc(dl) == 0) {
+		flags |= NLM_F_DUMP;
+	} else if (dl_argv_match(dl, "group")) {
+		dl_arg_inc(dl);
+		err = dl_argv_uint32_t(dl, &dl->opts.metric_group);
+		if (err)
+			return err;
+		dl->opts.present |= DL_OPT_METRIC_GROUP;
+		flags |= NLM_F_DUMP;
+	}
+
+	nlh = mnlg_msg_prepare(dl->nlg, DEVLINK_CMD_METRIC_GET, flags);
+
+	if (dl_argc(dl) > 0) {
+		if (flags & NLM_F_DUMP) {
+			pr_err("Too many arguments\n");
+			return -EINVAL;
+		}
+
+		err = dl_argv_parse(dl, DL_OPT_HANDLE | DL_OPT_METRIC_NAME, 0);
+		if (err)
+			return err;
+	}
+
+	dl_opts_put(nlh, dl);
+
+	pr_out_section_start(dl, "metric");
+	err = _mnlg_socket_sndrcv(dl->nlg, nlh, cmd_dev_metric_show_cb, dl);
+	pr_out_section_end(dl);
+	return err;
+}
+
+static int cmd_dev_metric(struct dl *dl)
+{
+	if (dl_argv_match(dl, "help")) {
+		cmd_dev_help();
+		return 0;
+	} else if (dl_argv_match(dl, "show") || dl_no_arg(dl)) {
+		dl_arg_inc(dl);
+		return cmd_dev_metric_show(dl);
+	} else if (dl_argv_match(dl, "set")) {
+		dl_arg_inc(dl);
+		return cmd_dev_metric_set(dl);
+	}
+	pr_err("Command \"%s\" not found\n", dl_argv(dl));
+	return -ENOENT;
+}
+
 static int cmd_dev(struct dl *dl)
 {
 	if (dl_argv_match(dl, "help")) {
@@ -3337,6 +3489,9 @@ static int cmd_dev(struct dl *dl)
 	} else if (dl_argv_match(dl, "flash")) {
 		dl_arg_inc(dl);
 		return cmd_dev_flash(dl);
+	} else if (dl_argv_match(dl, "metric")) {
+		dl_arg_inc(dl);
+		return cmd_dev_metric(dl);
 	}
 	pr_err("Command \"%s\" not found\n", dl_argv(dl));
 	return -ENOENT;
@@ -4466,6 +4621,10 @@ static const char *cmd_name(uint8_t cmd)
 	case DEVLINK_CMD_TRAP_POLICER_SET: return "set";
 	case DEVLINK_CMD_TRAP_POLICER_NEW: return "new";
 	case DEVLINK_CMD_TRAP_POLICER_DEL: return "del";
+	case DEVLINK_CMD_METRIC_GET: return "get";
+	case DEVLINK_CMD_METRIC_SET: return "set";
+	case DEVLINK_CMD_METRIC_NEW: return "new";
+	case DEVLINK_CMD_METRIC_DEL: return "del";
 	default: return "<unknown cmd>";
 	}
 }
@@ -4515,6 +4674,11 @@ static const char *cmd_obj(uint8_t cmd)
 	case DEVLINK_CMD_TRAP_POLICER_NEW:
 	case DEVLINK_CMD_TRAP_POLICER_DEL:
 		return "trap-policer";
+	case DEVLINK_CMD_METRIC_GET:
+	case DEVLINK_CMD_METRIC_SET:
+	case DEVLINK_CMD_METRIC_NEW:
+	case DEVLINK_CMD_METRIC_DEL:
+		return "metric";
 	default: return "<unknown obj>";
 	}
 }
@@ -4585,6 +4749,7 @@ static void pr_out_health(struct dl *dl, struct nlattr **tb_health,
 static void pr_out_trap(struct dl *dl, struct nlattr **tb, bool array);
 static void pr_out_trap_group(struct dl *dl, struct nlattr **tb, bool array);
 static void pr_out_trap_policer(struct dl *dl, struct nlattr **tb, bool array);
+static void pr_out_metric(struct dl *dl, struct nlattr **tb, bool array);
 
 static int cmd_mon_show_cb(const struct nlmsghdr *nlh, void *data)
 {
@@ -4706,6 +4871,19 @@ static int cmd_mon_show_cb(const struct nlmsghdr *nlh, void *data)
 		pr_out_mon_header(genl->cmd);
 		pr_out_trap_policer(dl, tb, false);
 		break;
+	case DEVLINK_CMD_METRIC_GET: /* fall through */
+	case DEVLINK_CMD_METRIC_SET: /* fall through */
+	case DEVLINK_CMD_METRIC_NEW: /* fall through */
+	case DEVLINK_CMD_METRIC_DEL:
+		mnl_attr_parse(nlh, sizeof(*genl), attr_cb, tb);
+		if (!tb[DEVLINK_ATTR_BUS_NAME] || !tb[DEVLINK_ATTR_DEV_NAME] ||
+		    !tb[DEVLINK_ATTR_METRIC_NAME] ||
+		    !tb[DEVLINK_ATTR_METRIC_TYPE] ||
+		    !tb[DEVLINK_ATTR_METRIC_GROUP])
+			return MNL_CB_ERROR;
+		pr_out_mon_header(genl->cmd);
+		pr_out_metric(dl, tb, false);
+		break;
 	}
 	fflush(stdout);
 	return MNL_CB_OK;
@@ -4724,7 +4902,8 @@ static int cmd_mon_show(struct dl *dl)
 		    strcmp(cur_obj, "health") != 0 &&
 		    strcmp(cur_obj, "trap") != 0 &&
 		    strcmp(cur_obj, "trap-group") != 0 &&
-		    strcmp(cur_obj, "trap-policer") != 0) {
+		    strcmp(cur_obj, "trap-policer") != 0 &&
+		    strcmp(cur_obj, "metric") != 0) {
 			pr_err("Unknown object \"%s\"\n", cur_obj);
 			return -EINVAL;
 		}
@@ -4745,7 +4924,7 @@ static int cmd_mon_show(struct dl *dl)
 static void cmd_mon_help(void)
 {
 	pr_err("Usage: devlink monitor [ all | OBJECT-LIST ]\n"
-	       "where  OBJECT-LIST := { dev | port | health | trap | trap-group | trap-policer }\n");
+	       "where  OBJECT-LIST := { dev | port | health | trap | trap-group | trap-policer | metric }\n");
 }
 
 static int cmd_mon(struct dl *dl)
