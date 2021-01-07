@@ -10,8 +10,8 @@
  * (at your option) any later version.
  */
 
-#ifndef _LINUX_DEVLINK_H_
-#define _LINUX_DEVLINK_H_
+#ifndef _UAPI_LINUX_DEVLINK_H_
+#define _UAPI_LINUX_DEVLINK_H_
 
 #include <linux/const.h>
 
@@ -126,6 +126,11 @@ enum devlink_command {
 
 	DEVLINK_CMD_HEALTH_REPORTER_TEST,
 
+	DEVLINK_CMD_LINECARD_GET,		/* can dump */
+	DEVLINK_CMD_LINECARD_SET,
+	DEVLINK_CMD_LINECARD_NEW,
+	DEVLINK_CMD_LINECARD_DEL,
+
 	/* add new commands above here */
 	__DEVLINK_CMD_MAX,
 	DEVLINK_CMD_MAX = __DEVLINK_CMD_MAX - 1
@@ -199,6 +204,10 @@ enum devlink_port_flavour {
 	DEVLINK_PORT_FLAVOUR_VIRTUAL, /* Any virtual port facing the user. */
 	DEVLINK_PORT_FLAVOUR_UNUSED, /* Port which exists in the switch, but
 				      * is not used in any way.
+				      */
+	DEVLINK_PORT_FLAVOUR_PCI_SF, /* Represents eswitch port
+				      * for the PCI SF. It is an internal
+				      * port that faces the PCI SF.
 				      */
 };
 
@@ -322,7 +331,20 @@ enum devlink_reload_limit {
 	DEVLINK_RELOAD_LIMIT_MAX = __DEVLINK_RELOAD_LIMIT_MAX - 1
 };
 
-#define DEVLINK_RELOAD_LIMITS_VALID_MASK (BIT(__DEVLINK_RELOAD_LIMIT_MAX) - 1)
+#define DEVLINK_RELOAD_LIMITS_VALID_MASK (_BITUL(__DEVLINK_RELOAD_LIMIT_MAX) - 1)
+
+enum devlink_linecard_state {
+	DEVLINK_LINECARD_STATE_UNSPEC,
+	DEVLINK_LINECARD_STATE_UNPROVISIONED,
+	DEVLINK_LINECARD_STATE_UNPROVISIONING,
+	DEVLINK_LINECARD_STATE_PROVISIONING,
+	DEVLINK_LINECARD_STATE_PROVISIONING_FAILED,
+	DEVLINK_LINECARD_STATE_PROVISIONED,
+	DEVLINK_LINECARD_STATE_ACTIVE,
+
+	__DEVLINK_LINECARD_STATE_MAX,
+	DEVLINK_LINECARD_STATE_MAX = __DEVLINK_LINECARD_STATE_MAX - 1
+};
 
 enum devlink_attr {
 	/* don't change the order or add anything between, this is ABI! */
@@ -529,6 +551,14 @@ enum devlink_attr {
 	DEVLINK_ATTR_RELOAD_ACTION_INFO,        /* nested */
 	DEVLINK_ATTR_RELOAD_ACTION_STATS,       /* nested */
 
+	DEVLINK_ATTR_PORT_PCI_SF_NUMBER,	/* u32 */
+
+	DEVLINK_ATTR_LINECARD_INDEX,		/* u32 */
+	DEVLINK_ATTR_LINECARD_STATE,		/* u8 */
+	DEVLINK_ATTR_LINECARD_TYPE,		/* string */
+	DEVLINK_ATTR_LINECARD_SUPPORTED_TYPES,	/* nested */
+	DEVLINK_ATTR_LINECARD_INFO,		/* nested */
+
 	/* add new attributes above here, update the policy in devlink.c */
 
 	__DEVLINK_ATTR_MAX,
@@ -578,9 +608,29 @@ enum devlink_resource_unit {
 enum devlink_port_function_attr {
 	DEVLINK_PORT_FUNCTION_ATTR_UNSPEC,
 	DEVLINK_PORT_FUNCTION_ATTR_HW_ADDR,	/* binary */
+	DEVLINK_PORT_FN_ATTR_STATE,	/* u8 */
+	DEVLINK_PORT_FN_ATTR_OPSTATE,	/* u8 */
 
 	__DEVLINK_PORT_FUNCTION_ATTR_MAX,
 	DEVLINK_PORT_FUNCTION_ATTR_MAX = __DEVLINK_PORT_FUNCTION_ATTR_MAX - 1
 };
 
-#endif /* _LINUX_DEVLINK_H_ */
+enum devlink_port_fn_state {
+	DEVLINK_PORT_FN_STATE_INACTIVE,
+	DEVLINK_PORT_FN_STATE_ACTIVE,
+};
+
+/**
+ * enum devlink_port_fn_opstate - indicates operational state of the function
+ * @DEVLINK_PORT_FN_OPSTATE_ATTACHED: Driver is attached to the function.
+ * For graceful tear down of the function, after inactivation of the
+ * function, user should wait for operational state to turn DETACHED.
+ * @DEVLINK_PORT_FN_OPSTATE_DETACHED: Driver is detached from the function.
+ * It is safe to delete the port.
+ */
+enum devlink_port_fn_opstate {
+	DEVLINK_PORT_FN_OPSTATE_DETACHED,
+	DEVLINK_PORT_FN_OPSTATE_ATTACHED,
+};
+
+#endif /* _UAPI_LINUX_DEVLINK_H_ */
