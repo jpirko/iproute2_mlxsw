@@ -10,8 +10,8 @@
  * (at your option) any later version.
  */
 
-#ifndef _LINUX_DEVLINK_H_
-#define _LINUX_DEVLINK_H_
+#ifndef _UAPI_LINUX_DEVLINK_H_
+#define _UAPI_LINUX_DEVLINK_H_
 
 #include <linux/const.h>
 
@@ -130,6 +130,13 @@ enum devlink_command {
 	DEVLINK_CMD_RATE_SET,
 	DEVLINK_CMD_RATE_NEW,
 	DEVLINK_CMD_RATE_DEL,
+
+	DEVLINK_CMD_LINECARD_GET,		/* can dump */
+	DEVLINK_CMD_LINECARD_SET,
+	DEVLINK_CMD_LINECARD_NEW,
+	DEVLINK_CMD_LINECARD_DEL,
+
+	DEVLINK_CMD_LINECARD_INFO_GET,		/* can dump */
 
 	/* add new commands above here */
 	__DEVLINK_CMD_MAX,
@@ -337,6 +344,19 @@ enum devlink_reload_limit {
 };
 
 #define DEVLINK_RELOAD_LIMITS_VALID_MASK (_BITUL(__DEVLINK_RELOAD_LIMIT_MAX) - 1)
+
+enum devlink_linecard_state {
+	DEVLINK_LINECARD_STATE_UNSPEC,
+	DEVLINK_LINECARD_STATE_UNPROVISIONED,
+	DEVLINK_LINECARD_STATE_UNPROVISIONING,
+	DEVLINK_LINECARD_STATE_PROVISIONING,
+	DEVLINK_LINECARD_STATE_PROVISIONING_FAILED,
+	DEVLINK_LINECARD_STATE_PROVISIONED,
+	DEVLINK_LINECARD_STATE_ACTIVE,
+
+	__DEVLINK_LINECARD_STATE_MAX,
+	DEVLINK_LINECARD_STATE_MAX = __DEVLINK_LINECARD_STATE_MAX - 1
+};
 
 enum devlink_attr {
 	/* don't change the order or add anything between, this is ABI! */
@@ -553,6 +573,16 @@ enum devlink_attr {
 
 	DEVLINK_ATTR_REGION_MAX_SNAPSHOTS,	/* u32 */
 
+	DEVLINK_ATTR_LINECARD_INDEX,		/* u32 */
+	DEVLINK_ATTR_LINECARD_STATE,		/* u8 */
+	DEVLINK_ATTR_LINECARD_TYPE,		/* string */
+	DEVLINK_ATTR_LINECARD_SUPPORTED_TYPES,	/* nested */
+	DEVLINK_ATTR_LINECARD_INFO,		/* nested */
+	DEVLINK_ATTR_LINECARD_DEVICE_LIST,	/* nested */
+	DEVLINK_ATTR_LINECARD_DEVICE,		/* nested */
+	DEVLINK_ATTR_LINECARD_DEVICE_INDEX,	/* u32 */
+	DEVLINK_ATTR_LINECARD_DEVICE_INFO,	/* nested */
+
 	/* add new attributes above here, update the policy in devlink.c */
 
 	__DEVLINK_ATTR_MAX,
@@ -627,4 +657,4 @@ enum devlink_port_fn_opstate {
 	DEVLINK_PORT_FN_OPSTATE_ATTACHED,
 };
 
-#endif /* _LINUX_DEVLINK_H_ */
+#endif /* _UAPI_LINUX_DEVLINK_H_ */
