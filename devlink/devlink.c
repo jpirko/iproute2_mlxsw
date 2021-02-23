@@ -686,6 +686,7 @@ static const enum mnl_attr_data_type devlink_policy[DEVLINK_ATTR_MAX + 1] = {
 	[DEVLINK_ATTR_LINECARD_STATE] = MNL_TYPE_U8,
 	[DEVLINK_ATTR_LINECARD_TYPE] = MNL_TYPE_STRING,
 	[DEVLINK_ATTR_LINECARD_SUPPORTED_TYPES] = MNL_TYPE_NESTED,
+	[DEVLINK_ATTR_LINECARD_INFO] = MNL_TYPE_NESTED,
 };
 
 static const enum mnl_attr_data_type
@@ -3340,14 +3341,22 @@ static int cmd_dev_reload(struct dl *dl)
 }
 
 static void pr_out_versions_single(struct dl *dl, const struct nlmsghdr *nlh,
+				   const struct nlattr *nest,
 				   const char *name, int type)
 {
 	struct nlattr *payload;
 	struct nlattr *attr;
 	int payload_size;
 
-	payload = mnl_nlmsg_get_payload_offset(nlh, sizeof(struct genlmsghdr));
-	payload_size = (char *) mnl_nlmsg_get_payload_tail(nlh) - (char *) payload;
+	if (nlh) {
+		payload = mnl_nlmsg_get_payload_offset(nlh, sizeof(struct genlmsghdr));
+		payload_size = (char *) mnl_nlmsg_get_payload_tail(nlh) - (char *) payload;
+	} else if (nest) {
+		payload = mnl_attr_get_payload(nest);
+		payload_size = mnl_attr_get_payload_len(nest);
+	} else {
+		return;
+	}
 
 	mnl_attr_for_each_payload(payload, payload_size) {
 		struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
@@ -3397,10 +3406,9 @@ static void pr_out_info_check(struct nlattr **tb, bool *has_info,
 }
 
 static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
+			const struct nlattr *nest,
 			struct nlattr **tb, bool has_versions)
 {
-	__pr_out_handle_start(dl, tb, true, false);
-
 	__pr_out_indent_inc();
 	if (tb[DEVLINK_ATTR_INFO_DRIVER_NAME]) {
 		struct nlattr *nla_drv = tb[DEVLINK_ATTR_INFO_DRIVER_NAME];
@@ -3436,17 +3444,15 @@ static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 	if (has_versions) {
 		pr_out_object_start(dl, "versions");
 
-		pr_out_versions_single(dl, nlh, "fixed",
+		pr_out_versions_single(dl, nlh, nest, "fixed",
 				       DEVLINK_ATTR_INFO_VERSION_FIXED);
-		pr_out_versions_single(dl, nlh, "running",
+		pr_out_versions_single(dl, nlh, nest, "running",
 				       DEVLINK_ATTR_INFO_VERSION_RUNNING);
-		pr_out_versions_single(dl, nlh, "stored",
+		pr_out_versions_single(dl, nlh, nest, "stored",
 				       DEVLINK_ATTR_INFO_VERSION_STORED);
 
 		pr_out_object_end(dl);
 	}
-
-	pr_out_handle_end(dl);
 }
 
 static int cmd_versions_show_cb(const struct nlmsghdr *nlh, void *data)
@@ -3462,8 +3468,12 @@ static int cmd_versions_show_cb(const struct nlmsghdr *nlh, void *data)
 		return MNL_CB_ERROR;
 
 	pr_out_info_check(tb, &has_info, &has_versions);
-	if (has_info)
-		pr_out_info(dl, nlh, tb, has_versions);
+	if (!has_info)
+		return MNL_CB_OK;
+
+	__pr_out_handle_start(dl, tb, true, false);
+	pr_out_info(dl, nlh, NULL, tb, has_versions);
+	pr_out_handle_end(dl);
 
 	return MNL_CB_OK;
 }
@@ -4517,6 +4527,27 @@ static void pr_out_linecard_supported_types(struct dl *dl, struct nlattr **tb)
 	pr_out_array_end(dl);
 }
 
+static void pr_out_linecard_info(struct dl *dl, struct nlattr **tb_linecard)
+{
+	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+	bool has_versions, has_info;
+	const struct nlattr *nest;
+	int err;
+
+	if (!tb_linecard[DEVLINK_ATTR_LINECARD_INFO] || !dl->verbose)
+		return;
+	nest = tb_linecard[DEVLINK_ATTR_LINECARD_INFO];
+	err = mnl_attr_parse_nested(nest, attr_cb, tb);
+	if (err != MNL_CB_OK)
+		return;
+	pr_out_info_check(tb, &has_info, &has_versions);
+	if (!has_info)
+		return;
+	pr_out_object_start(dl, "info");
+	pr_out_info(dl, NULL, nest, tb, has_versions);
+	pr_out_object_end(dl);
+}
+
 static void pr_out_linecard(struct dl *dl, struct nlattr **tb)
 {
 	uint8_t state;
@@ -4532,6 +4563,7 @@ static void pr_out_linecard(struct dl *dl, struct nlattr **tb)
 		print_string(PRINT_ANY, "type", " type %s",
 			     mnl_attr_get_str(tb[DEVLINK_ATTR_LINECARD_TYPE]));
 	pr_out_linecard_supported_types(dl, tb);
+	pr_out_linecard_info(dl, tb);
 	pr_out_handle_end(dl);
 }
 
