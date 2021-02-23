@@ -4923,6 +4923,7 @@ static void cmd_linecard_help(void)
 {
 	pr_err("Usage: devlink lc show [ DEV [ lc LC_INDEX ] ]\n");
 	pr_err("       devlink lc set DEV lc LC_INDEX [ { type LC_TYPE | notype } ]\n");
+	pr_err("       devlink lc info DEV [ lc LC_INDEX ]\n");
 }
 
 static const char *linecard_state_name(uint16_t flavour)
@@ -5070,6 +5071,57 @@ static int cmd_linecard_set(struct dl *dl)
 	return mnlu_gen_socket_sndrcv(&dl->nlg, nlh, NULL, NULL);
 }
 
+static int cmd_linecard_info_cb(const struct nlmsghdr *nlh, void *data)
+{
+	struct genlmsghdr *genl = mnl_nlmsg_get_payload(nlh);
+	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+	bool has_versions, has_info;
+	struct dl *dl = data;
+
+	mnl_attr_parse(nlh, sizeof(*genl), attr_cb, tb);
+
+	if (!tb[DEVLINK_ATTR_BUS_NAME] || !tb[DEVLINK_ATTR_DEV_NAME] ||
+	    !tb[DEVLINK_ATTR_LINECARD_INDEX])
+		return MNL_CB_ERROR;
+
+	pr_out_handle_start_arr(dl, tb);
+	check_indent_newline(dl);
+	print_uint(PRINT_ANY, "lc", "lc %u",
+		   mnl_attr_get_u32(tb[DEVLINK_ATTR_LINECARD_INDEX]));
+	pr_out_info_check(tb, &has_info, &has_versions);
+	if (has_info)
+		pr_out_info(dl, nlh, NULL, tb, has_versions);
+	pr_out_handle_end(dl);
+
+	return MNL_CB_OK;
+}
+
+static int cmd_linecard_info(struct dl *dl)
+{
+	struct nlmsghdr *nlh;
+	uint16_t flags = NLM_F_REQUEST | NLM_F_ACK;
+	int err;
+
+	if (dl_argc(dl) == 0)
+		flags |= NLM_F_DUMP;
+
+	nlh = mnlu_gen_socket_cmd_prepare(&dl->nlg,
+					  DEVLINK_CMD_LINECARD_INFO_GET,
+					  flags);
+
+	if (dl_argc(dl) > 0) {
+		err = dl_argv_parse_put(nlh, dl, DL_OPT_HANDLE,
+					DL_OPT_LINECARD);
+		if (err)
+			return err;
+	}
+
+	pr_out_section_start(dl, "lc");
+	err = mnlu_gen_socket_sndrcv(&dl->nlg, nlh, cmd_linecard_info_cb, dl);
+	pr_out_section_end(dl);
+	return err;
+}
+
 static int cmd_linecard(struct dl *dl)
 {
 	if (dl_argv_match(dl, "help")) {
@@ -5082,6 +5134,9 @@ static int cmd_linecard(struct dl *dl)
 	} else if (dl_argv_match(dl, "set")) {
 		dl_arg_inc(dl);
 		return cmd_linecard_set(dl);
+	} else if (dl_argv_match(dl, "info")) {
+		dl_arg_inc(dl);
+		return cmd_linecard_info(dl);
 	}
 	pr_err("Command \"%s\" not found\n", dl_argv(dl));
 	return -ENOENT;
