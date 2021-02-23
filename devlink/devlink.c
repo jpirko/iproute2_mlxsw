@@ -3485,6 +3485,18 @@ static void pr_out_versions_single(struct dl *dl, const struct nlmsghdr *nlh,
 		pr_out_object_end(dl);
 }
 
+static void pr_out_info_check(struct nlattr **tb, bool *has_info,
+			      bool *has_versions)
+{
+	*has_versions = tb[DEVLINK_ATTR_INFO_VERSION_FIXED] ||
+		tb[DEVLINK_ATTR_INFO_VERSION_RUNNING] ||
+		tb[DEVLINK_ATTR_INFO_VERSION_STORED];
+	*has_info = tb[DEVLINK_ATTR_INFO_DRIVER_NAME] ||
+		tb[DEVLINK_ATTR_INFO_SERIAL_NUMBER] ||
+		tb[DEVLINK_ATTR_INFO_BOARD_SERIAL_NUMBER] ||
+		*has_versions;
+}
+
 static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 			struct nlattr **tb, bool has_versions)
 {
@@ -3550,14 +3562,7 @@ static int cmd_versions_show_cb(const struct nlmsghdr *nlh, void *data)
 	if (!tb[DEVLINK_ATTR_BUS_NAME] || !tb[DEVLINK_ATTR_DEV_NAME])
 		return MNL_CB_ERROR;
 
-	has_versions = tb[DEVLINK_ATTR_INFO_VERSION_FIXED] ||
-		tb[DEVLINK_ATTR_INFO_VERSION_RUNNING] ||
-		tb[DEVLINK_ATTR_INFO_VERSION_STORED];
-	has_info = tb[DEVLINK_ATTR_INFO_DRIVER_NAME] ||
-		tb[DEVLINK_ATTR_INFO_SERIAL_NUMBER] ||
-		tb[DEVLINK_ATTR_INFO_BOARD_SERIAL_NUMBER] ||
-		has_versions;
-
+	pr_out_info_check(tb, &has_info, &has_versions);
 	if (has_info)
 		pr_out_info(dl, nlh, tb, has_versions);
 
