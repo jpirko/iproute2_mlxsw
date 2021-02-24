@@ -3490,18 +3490,23 @@ static int cmd_dev_reload(struct dl *dl)
 static void pr_out_versions_single(struct dl *dl, const struct nlmsghdr *nlh,
 				   const char *name, int type)
 {
-	struct nlattr *version;
+	struct nlattr *payload;
+	struct nlattr *attr;
+	int payload_size;
 
-	mnl_attr_for_each(version, nlh, sizeof(struct genlmsghdr)) {
+	payload = mnl_nlmsg_get_payload_offset(nlh, sizeof(struct genlmsghdr));
+	payload_size = (char *) mnl_nlmsg_get_payload_tail(nlh) - (char *) payload;
+
+	mnl_attr_for_each_payload(payload, payload_size) {
 		struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
 		const char *ver_value;
 		const char *ver_name;
 		int err;
 
-		if (mnl_attr_get_type(version) != type)
+		if (mnl_attr_get_type(attr) != type)
 			continue;
 
-		err = mnl_attr_parse_nested(version, attr_cb, tb);
+		err = mnl_attr_parse_nested(attr, attr_cb, tb);
 		if (err != MNL_CB_OK)
 			continue;
 
