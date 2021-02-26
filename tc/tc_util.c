@@ -321,6 +321,8 @@ static const char *action_n2a(int action)
 		return "stolen";
 	case TC_ACT_TRAP:
 		return "trap";
+	case TC_ACT_TRAP_FWD:
+		return "trap_fwd";
 	default:
 		snprintf(buf, 64, "%d", action);
 		return buf;
@@ -354,6 +356,7 @@ int action_a2n(char *arg, int *result, bool allow_num)
 		{"goto", TC_ACT_GOTO_CHAIN},
 		{"jump", TC_ACT_JUMP},
 		{"trap", TC_ACT_TRAP},
+		{"trap_fwd", TC_ACT_TRAP_FWD},
 		{ NULL },
 	}, *iter;
 
