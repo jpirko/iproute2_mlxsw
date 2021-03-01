@@ -706,6 +706,9 @@ static const enum mnl_attr_data_type devlink_policy[DEVLINK_ATTR_MAX + 1] = {
 	[DEVLINK_ATTR_LINECARD_STATE] = MNL_TYPE_U8,
 	[DEVLINK_ATTR_LINECARD_TYPE] = MNL_TYPE_STRING,
 	[DEVLINK_ATTR_LINECARD_SUPPORTED_TYPES] = MNL_TYPE_NESTED,
+	[DEVLINK_ATTR_LINECARD_DEVICE_LIST] = MNL_TYPE_NESTED,
+	[DEVLINK_ATTR_LINECARD_DEVICE] = MNL_TYPE_NESTED,
+	[DEVLINK_ATTR_LINECARD_DEVICE_INDEX] = MNL_TYPE_U32,
 };
 
 static const enum mnl_attr_data_type
@@ -4959,6 +4962,39 @@ static void pr_out_linecard_supported_types(struct dl *dl, struct nlattr **tb)
 	pr_out_array_end(dl);
 }
 
+static void pr_out_linecard_device(struct dl *dl,
+				   const struct nlattr *nla_device)
+{
+	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+	int err;
+
+	err = mnl_attr_parse_nested(nla_device, attr_cb, tb);
+	if (err != MNL_CB_OK || !tb[DEVLINK_ATTR_LINECARD_DEVICE_INDEX])
+		return;
+	pr_out_entry_start(dl);
+	check_indent_newline(dl);
+	print_uint(PRINT_ANY, "device", "device %u",
+		   mnl_attr_get_u32(tb[DEVLINK_ATTR_LINECARD_DEVICE_INDEX]));
+	pr_out_entry_end(dl);
+}
+
+static void pr_out_linecard_devices(struct dl *dl, struct nlattr **tb)
+{
+	const struct nlattr *nla_device_list, *nla_device;
+
+	if (!tb[DEVLINK_ATTR_LINECARD_DEVICE_LIST])
+		return;
+	nla_device_list = tb[DEVLINK_ATTR_LINECARD_DEVICE_LIST];
+	pr_out_array_start(dl, "devices");
+	mnl_attr_for_each_nested(nla_device, nla_device_list) {
+		if (mnl_attr_get_type(nla_device) !=
+		    DEVLINK_ATTR_LINECARD_DEVICE)
+			continue;
+		pr_out_linecard_device(dl, nla_device);
+	}
+	pr_out_array_end(dl);
+}
+
 static void pr_out_linecard(struct dl *dl, struct nlattr **tb)
 {
 	uint8_t state;
@@ -4974,6 +5010,7 @@ static void pr_out_linecard(struct dl *dl, struct nlattr **tb)
 		print_string(PRINT_ANY, "type", " type %s",
 			     mnl_attr_get_str(tb[DEVLINK_ATTR_LINECARD_TYPE]));
 	pr_out_linecard_supported_types(dl, tb);
+	pr_out_linecard_devices(dl, tb);
 	pr_out_handle_end(dl);
 }
 
