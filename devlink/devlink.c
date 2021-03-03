@@ -709,6 +709,7 @@ static const enum mnl_attr_data_type devlink_policy[DEVLINK_ATTR_MAX + 1] = {
 	[DEVLINK_ATTR_LINECARD_DEVICE_LIST] = MNL_TYPE_NESTED,
 	[DEVLINK_ATTR_LINECARD_DEVICE] = MNL_TYPE_NESTED,
 	[DEVLINK_ATTR_LINECARD_DEVICE_INDEX] = MNL_TYPE_U32,
+	[DEVLINK_ATTR_LINECARD_DEVICE_INFO] = MNL_TYPE_NESTED,
 };
 
 static const enum mnl_attr_data_type
@@ -5134,14 +5135,17 @@ static int cmd_linecard_set(struct dl *dl)
 	return mnlu_gen_socket_sndrcv(&dl->nlg, nlh, NULL, NULL);
 }
 
-static void pr_out_linecard_info(struct dl *dl, struct nlattr **tb_upper)
+static void __pr_out_info(struct dl *dl, struct nlattr **tb_upper,
+			  int attr_type)
 {
 	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
 	bool has_versions, has_info;
 	const struct nlattr *nest;
 	int err;
 
-	nest = tb_upper[DEVLINK_ATTR_LINECARD_INFO];
+	if (!tb_upper[attr_type])
+		return;
+	nest = tb_upper[attr_type];
 	err = mnl_attr_parse_nested(nest, attr_cb, tb);
 	if (err != MNL_CB_OK)
 		return;
@@ -5151,7 +5155,46 @@ static void pr_out_linecard_info(struct dl *dl, struct nlattr **tb_upper)
 	pr_out_object_start(dl, "info");
 	pr_out_info(dl, NULL, nest, tb, has_versions);
 	pr_out_object_end(dl);
-};
+}
+
+static void pr_out_linecard_info(struct dl *dl, struct nlattr **tb)
+{
+	__pr_out_info(dl, tb, DEVLINK_ATTR_LINECARD_INFO);
+}
+
+static void pr_out_linecard_device_info(struct dl *dl,
+					const struct nlattr *nla_device)
+{
+	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+	int err;
+
+	err = mnl_attr_parse_nested(nla_device, attr_cb, tb);
+	if (err != MNL_CB_OK || !tb[DEVLINK_ATTR_LINECARD_DEVICE_INDEX])
+		return;
+	pr_out_entry_start(dl);
+	check_indent_newline(dl);
+	print_uint(PRINT_ANY, "device", "device %u",
+		   mnl_attr_get_u32(tb[DEVLINK_ATTR_LINECARD_DEVICE_INDEX]));
+	__pr_out_info(dl, tb, DEVLINK_ATTR_LINECARD_DEVICE_INFO);
+	pr_out_entry_end(dl);
+}
+
+static void pr_out_linecard_devices_info(struct dl *dl, struct nlattr **tb)
+{
+	const struct nlattr *nla_device_list, *nla_device;
+
+	if (!tb[DEVLINK_ATTR_LINECARD_DEVICE_LIST])
+		return;
+	nla_device_list = tb[DEVLINK_ATTR_LINECARD_DEVICE_LIST];
+	pr_out_array_start(dl, "devices");
+	mnl_attr_for_each_nested(nla_device, nla_device_list) {
+		if (mnl_attr_get_type(nla_device) !=
+		    DEVLINK_ATTR_LINECARD_DEVICE)
+			continue;
+		pr_out_linecard_device_info(dl, nla_device);
+	}
+	pr_out_array_end(dl);
+}
 
 static int cmd_linecard_info_cb(const struct nlmsghdr *nlh, void *data)
 {
@@ -5170,6 +5213,7 @@ static int cmd_linecard_info_cb(const struct nlmsghdr *nlh, void *data)
 	print_uint(PRINT_ANY, "lc", "lc %u",
 		   mnl_attr_get_u32(tb[DEVLINK_ATTR_LINECARD_INDEX]));
 	pr_out_linecard_info(dl, tb);
+	pr_out_linecard_devices_info(dl, tb);
 	pr_out_handle_end(dl);
 
 	return MNL_CB_OK;
