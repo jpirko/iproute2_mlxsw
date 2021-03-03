@@ -695,6 +695,7 @@ static const enum mnl_attr_data_type devlink_policy[DEVLINK_ATTR_MAX + 1] = {
 	[DEVLINK_ATTR_LINECARD_DEVICE_LIST] = MNL_TYPE_NESTED,
 	[DEVLINK_ATTR_LINECARD_DEVICE] = MNL_TYPE_NESTED,
 	[DEVLINK_ATTR_LINECARD_DEVICE_INDEX] = MNL_TYPE_U32,
+	[DEVLINK_ATTR_LINECARD_DEVICE_INFO] = MNL_TYPE_NESTED,
 };
 
 static const enum mnl_attr_data_type
@@ -4535,16 +4536,17 @@ static void pr_out_linecard_supported_types(struct dl *dl, struct nlattr **tb)
 	pr_out_array_end(dl);
 }
 
-static void pr_out_linecard_info(struct dl *dl, struct nlattr **tb_linecard)
+static void __pr_out_info(struct dl *dl, struct nlattr **tb_upper,
+			  int attr_type)
 {
 	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
 	bool has_versions, has_info;
 	const struct nlattr *nest;
 	int err;
 
-	if (!tb_linecard[DEVLINK_ATTR_LINECARD_INFO] || !dl->verbose)
+	if (!tb_upper[attr_type] || !dl->verbose)
 		return;
-	nest = tb_linecard[DEVLINK_ATTR_LINECARD_INFO];
+	nest = tb_upper[attr_type];
 	err = mnl_attr_parse_nested(nest, attr_cb, tb);
 	if (err != MNL_CB_OK)
 		return;
@@ -4554,6 +4556,16 @@ static void pr_out_linecard_info(struct dl *dl, struct nlattr **tb_linecard)
 	pr_out_object_start(dl, "info");
 	pr_out_info(dl, NULL, nest, tb, has_versions);
 	pr_out_object_end(dl);
+}
+
+static void pr_out_linecard_info(struct dl *dl, struct nlattr **tb)
+{
+	__pr_out_info(dl, tb, DEVLINK_ATTR_LINECARD_INFO);
+}
+
+static void pr_out_linecard_device_info(struct dl *dl, struct nlattr **tb)
+{
+	__pr_out_info(dl, tb, DEVLINK_ATTR_LINECARD_DEVICE_INFO);
 }
 
 static void pr_out_linecard_device(struct dl *dl,
@@ -4575,6 +4587,7 @@ static void pr_out_linecard_device(struct dl *dl,
 	if (flashable)
 		print_string(PRINT_ANY, "component", " component %s",
 			     mnl_attr_get_str(tb[DEVLINK_ATTR_FLASH_UPDATE_COMPONENT]));
+	pr_out_linecard_device_info(dl, tb);
 	pr_out_entry_end(dl);
 }
 
@@ -4586,6 +4599,7 @@ static void pr_out_linecard_devices(struct dl *dl, struct nlattr **tb)
 		return;
 	nla_device_list = tb[DEVLINK_ATTR_LINECARD_DEVICE_LIST];
 	check_indent_newline(dl);
+	pr_avoid_next_newline();
 	pr_out_array_start(dl, "devices");
 	mnl_attr_for_each_nested(nla_device, nla_device_list) {
 		if (mnl_attr_get_type(nla_device) !=
