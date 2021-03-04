@@ -151,6 +151,11 @@ static void __pr_out_newline(void)
 	g_new_line_count++;
 }
 
+static void pr_avoid_next_newline(void)
+{
+	g_new_line_count = 1;
+}
+
 static void dummy_signal_handler(int signum)
 {
 }
@@ -3491,7 +3496,7 @@ static void pr_out_reload_actions_performed(struct dl *dl, struct nlattr **tb)
 	actions = mnl_attr_get_payload(nla_actions_performed);
 	if (!actions)
 		return;
-	g_new_line_count = 1; /* Avoid extra new line in non-json print */
+	pr_avoid_next_newline();
 	pr_out_array_start(dl, "reload_actions_performed");
 	actions_performed = actions->value & actions->selector;
 	for (action = 0; action <= DEVLINK_RELOAD_ACTION_MAX; action++) {
@@ -8652,13 +8657,7 @@ static int cmd_fmsg_object_cb(const struct nlmsghdr *nlh, void *data)
 
 static void cmd_fmsg_init(struct dl *dl, struct fmsg_cb_data *data)
 {
-	/* FMSG is dynamic: opening of an object or array causes a
-	 * newline. JSON starts with an { or [, but plain text should
-	 * not start with a new line. Ensure this by setting
-	 * g_new_line_count to 1: avoiding newline before the first
-	 * print.
-	 */
-	g_new_line_count = 1;
+	pr_avoid_next_newline();
 	data->name = NULL;
 	data->dl = dl;
 	INIT_LIST_HEAD(&data->entry_list);
