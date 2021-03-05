@@ -72,7 +72,11 @@ enum {
 				   * the skb and act like everything
 				   * is alright.
 				   */
-#define TC_ACT_VALUE_MAX	TC_ACT_TRAP
+#define TC_ACT_TRAP_FWD		9 /* For hw path, this means "send a copy
+				   * of the packet to the cpu". For sw
+				   * datapath, this is like TC_ACT_OK.
+				   */
+#define TC_ACT_VALUE_MAX	TC_ACT_TRAP_FWD
 
 /* There is a special kind of actions called "extended actions",
  * which need a value parameter. These have a local opcode located in
@@ -593,6 +597,7 @@ enum {
 	TCA_FLOWER_KEY_CT_FLAGS_TRACKED = 1 << 3, /* Conntrack has occurred. */
 	TCA_FLOWER_KEY_CT_FLAGS_INVALID = 1 << 4, /* Conntrack is invalid. */
 	TCA_FLOWER_KEY_CT_FLAGS_REPLY = 1 << 5, /* Packet is in the reply direction. */
+	__TCA_FLOWER_KEY_CT_FLAGS_MAX,
 };
 
 enum {
