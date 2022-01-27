@@ -376,6 +376,7 @@ struct dl {
 	bool pretty_output;
 	bool verbose;
 	bool stats;
+	bool hex;
 	struct {
 		bool present;
 		char *bus_name;
@@ -8485,6 +8486,8 @@ static int cmd_health_dump_clear(struct dl *dl)
 
 static int fmsg_value_show(struct dl *dl, int type, struct nlattr *nl_data)
 {
+	const char *num_fmt = dl->hex ? "%x" : "%u";
+	const char *num64_fmt = dl->hex ? "%"PRIx64 : "%"PRIu64;
 	uint8_t *data;
 	uint32_t len;
 
@@ -8494,16 +8497,16 @@ static int fmsg_value_show(struct dl *dl, int type, struct nlattr *nl_data)
 		print_bool(PRINT_ANY, NULL, "%s", mnl_attr_get_u8(nl_data));
 		break;
 	case MNL_TYPE_U8:
-		print_uint(PRINT_ANY, NULL, "%u", mnl_attr_get_u8(nl_data));
+		print_uint(PRINT_ANY, NULL, num_fmt, mnl_attr_get_u8(nl_data));
 		break;
 	case MNL_TYPE_U16:
-		print_uint(PRINT_ANY, NULL, "%u", mnl_attr_get_u16(nl_data));
+		print_uint(PRINT_ANY, NULL, num_fmt, mnl_attr_get_u16(nl_data));
 		break;
 	case MNL_TYPE_U32:
-		print_uint(PRINT_ANY, NULL, "%u", mnl_attr_get_u32(nl_data));
+		print_uint(PRINT_ANY, NULL, num_fmt, mnl_attr_get_u32(nl_data));
 		break;
 	case MNL_TYPE_U64:
-		print_u64(PRINT_ANY, NULL, "%"PRIu64, mnl_attr_get_u64(nl_data));
+		print_u64(PRINT_ANY, NULL, num64_fmt, mnl_attr_get_u64(nl_data));
 		break;
 	case MNL_TYPE_NUL_STRING:
 		print_string(PRINT_ANY, NULL, "%s", mnl_attr_get_str(nl_data));
@@ -9374,7 +9377,7 @@ static void help(void)
 	pr_err("Usage: devlink [ OPTIONS ] OBJECT { COMMAND | help }\n"
 	       "       devlink [ -f[orce] ] -b[atch] filename -N[etns] netnsname\n"
 	       "where  OBJECT := { dev | port | lc | sb | monitor | dpipe | resource | region | health | trap }\n"
-	       "       OPTIONS := { -V[ersion] | -n[o-nice-names] | -j[son] | -p[retty] | -v[erbose] -s[tatistics] }\n");
+	       "       OPTIONS := { -V[ersion] | -n[o-nice-names] | -j[son] | -p[retty] | -v[erbose] -s[tatistics] -h[ex] }\n");
 }
 
 static int dl_cmd(struct dl *dl, int argc, char **argv)
@@ -9491,6 +9494,7 @@ int main(int argc, char **argv)
 		{ "statistics",		no_argument,		NULL, 's' },
 		{ "Netns",		required_argument,	NULL, 'N' },
 		{ "iec",		no_argument,		NULL, 'i' },
+		{ "hex",		no_argument,		NULL, 'h' },
 		{ NULL, 0, NULL, 0 }
 	};
 	const char *batch_file = NULL;
@@ -9506,7 +9510,7 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	while ((opt = getopt_long(argc, argv, "Vfb:njpvsN:i",
+	while ((opt = getopt_long(argc, argv, "Vfb:njpvsN:ih",
 				  long_options, NULL)) >= 0) {
 
 		switch (opt) {
@@ -9543,6 +9547,9 @@ int main(int argc, char **argv)
 			break;
 		case 'i':
 			use_iec = true;
+			break;
+		case 'h':
+			dl->hex = true;
 			break;
 		default:
 			pr_err("Unknown option.\n");
