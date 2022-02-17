@@ -3514,8 +3514,6 @@ static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 			const struct nlattr *nest,
 			struct nlattr **tb, bool has_versions)
 {
-	__pr_out_handle_start(dl, tb, true, false);
-
 	__pr_out_indent_inc();
 	if (tb[DEVLINK_ATTR_INFO_DRIVER_NAME]) {
 		struct nlattr *nla_drv = tb[DEVLINK_ATTR_INFO_DRIVER_NAME];
@@ -3560,8 +3558,6 @@ static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 
 		pr_out_object_end(dl);
 	}
-
-	pr_out_handle_end(dl);
 }
 
 static int cmd_versions_show_cb(const struct nlmsghdr *nlh, void *data)
@@ -3577,8 +3573,11 @@ static int cmd_versions_show_cb(const struct nlmsghdr *nlh, void *data)
 		return MNL_CB_ERROR;
 
 	pr_out_info_check(tb, &has_info, &has_versions);
-	if (has_info)
+	if (has_info) {
+		__pr_out_handle_start(dl, tb, true, false);
 		pr_out_info(dl, nlh, NULL, tb, has_versions);
+		pr_out_handle_end(dl);
+	}
 
 	return MNL_CB_OK;
 }
