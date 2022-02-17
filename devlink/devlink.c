@@ -3488,14 +3488,22 @@ static int cmd_dev_reload(struct dl *dl)
 }
 
 static void pr_out_versions_single(struct dl *dl, const struct nlmsghdr *nlh,
+				   const struct nlattr *nest,
 				   const char *name, int type)
 {
 	struct nlattr *payload;
 	struct nlattr *attr;
 	int payload_size;
 
-	payload = mnl_nlmsg_get_payload_offset(nlh, sizeof(struct genlmsghdr));
-	payload_size = (char *) mnl_nlmsg_get_payload_tail(nlh) - (char *) payload;
+	if (nlh) {
+		payload = mnl_nlmsg_get_payload_offset(nlh, sizeof(struct genlmsghdr));
+		payload_size = (char *) mnl_nlmsg_get_payload_tail(nlh) - (char *) payload;
+	} else if (nest) {
+		payload = mnl_attr_get_payload(nest);
+		payload_size = mnl_attr_get_payload_len(nest);
+	} else {
+		return;
+	}
 
 	mnl_attr_for_each_payload(payload, payload_size) {
 		struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
@@ -3545,6 +3553,7 @@ static void pr_out_info_check(struct nlattr **tb, bool *has_info,
 }
 
 static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
+			const struct nlattr *nest,
 			struct nlattr **tb, bool has_versions)
 {
 	__pr_out_handle_start(dl, tb, true, false);
@@ -3584,11 +3593,11 @@ static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 	if (has_versions) {
 		pr_out_object_start(dl, "versions");
 
-		pr_out_versions_single(dl, nlh, "fixed",
+		pr_out_versions_single(dl, nlh, nest, "fixed",
 				       DEVLINK_ATTR_INFO_VERSION_FIXED);
-		pr_out_versions_single(dl, nlh, "running",
+		pr_out_versions_single(dl, nlh, nest, "running",
 				       DEVLINK_ATTR_INFO_VERSION_RUNNING);
-		pr_out_versions_single(dl, nlh, "stored",
+		pr_out_versions_single(dl, nlh, nest, "stored",
 				       DEVLINK_ATTR_INFO_VERSION_STORED);
 
 		pr_out_object_end(dl);
@@ -3611,7 +3620,7 @@ static int cmd_versions_show_cb(const struct nlmsghdr *nlh, void *data)
 
 	pr_out_info_check(tb, &has_info, &has_versions);
 	if (has_info)
-		pr_out_info(dl, nlh, tb, has_versions);
+		pr_out_info(dl, nlh, NULL, tb, has_versions);
 
 	return MNL_CB_OK;
 }
