@@ -4967,6 +4967,7 @@ static void pr_out_linecard_device(struct dl *dl,
 				   const struct nlattr *nla_device)
 {
 	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+	bool flashable;
 	int err;
 
 	err = mnl_attr_parse_nested(nla_device, attr_cb, tb);
@@ -4976,6 +4977,11 @@ static void pr_out_linecard_device(struct dl *dl,
 	check_indent_newline(dl);
 	print_uint(PRINT_ANY, "device", "device %u",
 		   mnl_attr_get_u32(tb[DEVLINK_ATTR_LINECARD_DEVICE_INDEX]));
+	flashable = tb[DEVLINK_ATTR_FLASH_UPDATE_COMPONENT];
+	print_bool(PRINT_ANY, "flashable", " flashable %s", flashable);
+	if (flashable)
+		print_string(PRINT_ANY, "component", " component %s",
+			     mnl_attr_get_str(tb[DEVLINK_ATTR_FLASH_UPDATE_COMPONENT]));
 	pr_out_entry_end(dl);
 }
 
