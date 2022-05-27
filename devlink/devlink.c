@@ -3560,6 +3560,46 @@ static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 	}
 }
 
+static void pr_out_flash_components(struct dl *dl, const struct nlmsghdr *nlh)
+{
+	bool subroot_pushed = false;
+	struct nlattr *attr;
+
+	mnl_attr_for_each(attr, nlh, sizeof(struct genlmsghdr)) {
+		struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+		bool has_versions, has_info;
+		const char *component_name;
+		int err;
+
+		if (mnl_attr_get_type(attr) != DEVLINK_ATTR_INFO_COMPONENT)
+			continue;
+
+		err = mnl_attr_parse_nested(attr, attr_cb, tb);
+		if (err != MNL_CB_OK)
+			continue;
+
+		if (!tb[DEVLINK_ATTR_FLASH_UPDATE_COMPONENT])
+			continue;
+		component_name = mnl_attr_get_str(tb[DEVLINK_ATTR_FLASH_UPDATE_COMPONENT]);
+
+		pr_out_info_check(tb, &has_info, &has_versions);
+
+		if (!has_info)
+			continue;
+
+		if (!subroot_pushed) {
+			pr_out_object_start(dl, "components");
+			subroot_pushed = true;
+		}
+
+		pr_out_object_start(dl, component_name);
+		pr_out_info(dl, NULL, attr, tb, has_versions);
+		pr_out_object_end(dl);
+	}
+	if (subroot_pushed)
+		pr_out_object_end(dl);
+}
+
 static int cmd_versions_show_cb(const struct nlmsghdr *nlh, void *data)
 {
 	struct genlmsghdr *genl = mnl_nlmsg_get_payload(nlh);
@@ -3576,6 +3616,7 @@ static int cmd_versions_show_cb(const struct nlmsghdr *nlh, void *data)
 	if (has_info) {
 		__pr_out_handle_start(dl, tb, true, false);
 		pr_out_info(dl, nlh, NULL, tb, has_versions);
+		pr_out_flash_components(dl, nlh);
 		pr_out_handle_end(dl);
 	}
 
