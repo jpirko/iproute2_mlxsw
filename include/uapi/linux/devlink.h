@@ -10,8 +10,8 @@
  * (at your option) any later version.
  */
 
-#ifndef _LINUX_DEVLINK_H_
-#define _LINUX_DEVLINK_H_
+#ifndef _UAPI_LINUX_DEVLINK_H_
+#define _UAPI_LINUX_DEVLINK_H_
 
 #include <linux/const.h>
 
@@ -576,6 +576,11 @@ enum devlink_attr {
 	DEVLINK_ATTR_LINECARD_TYPE,		/* string */
 	DEVLINK_ATTR_LINECARD_SUPPORTED_TYPES,	/* nested */
 
+	DEVLINK_ATTR_NESTED_DEVLINK,		/* nested */
+
+	DEVLINK_ATTR_INFO_VERSION_IS_COMPONENT,	/* u8 0 or 1 */
+	DEVLINK_ATTR_INFO_VERSION_IS_FLASH_UPDATE_DEFAULT,	/* u8 0 or 1 */
+
 	/* add new attributes above here, update the policy in devlink.c */
 
 	__DEVLINK_ATTR_MAX,
@@ -650,4 +655,4 @@ enum devlink_port_fn_opstate {
 	DEVLINK_PORT_FN_OPSTATE_ATTACHED,
 };
 
-#endif /* _LINUX_DEVLINK_H_ */
+#endif /* _UAPI_LINUX_DEVLINK_H_ */
