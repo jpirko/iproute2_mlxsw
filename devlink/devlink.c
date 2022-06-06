@@ -3693,6 +3693,42 @@ static void pr_out_versions_flash_components(struct dl *dl, const struct nlmsghd
 		pr_out_array_end(dl);
 }
 
+static void pr_out_versions_flash_update_default(struct dl *dl, const struct nlmsghdr *nlh)
+{
+	struct nlattr *version;
+
+	mnl_attr_for_each(version, nlh, sizeof(struct genlmsghdr)) {
+		struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+		uint8_t ver_is_flash_update_default;
+		const char *ver_name;
+		int err;
+
+		err = mnl_attr_parse_nested(version, attr_cb, tb);
+		if (err != MNL_CB_OK)
+			continue;
+
+		if (!tb[DEVLINK_ATTR_INFO_VERSION_NAME] ||
+		    !tb[DEVLINK_ATTR_INFO_VERSION_VALUE] ||
+		    !tb[DEVLINK_ATTR_INFO_VERSION_IS_FLASH_UPDATE_DEFAULT])
+			continue;
+
+		ver_is_flash_update_default = mnl_attr_get_u8(tb[DEVLINK_ATTR_INFO_VERSION_IS_FLASH_UPDATE_DEFAULT]);
+		if (!ver_is_flash_update_default)
+			continue;
+
+		ver_name = mnl_attr_get_str(tb[DEVLINK_ATTR_INFO_VERSION_NAME]);
+
+		check_indent_newline(dl);
+
+		print_string(PRINT_ANY, "flash_update_default", "flash_update_default %s",
+			     ver_name);
+
+		if (!dl->json_output)
+			__pr_out_newline();
+		return;
+	}
+}
+
 static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 			struct nlattr **tb, bool has_versions)
 {
@@ -3740,6 +3776,7 @@ static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 		pr_out_versions_single(dl, nlh, "stored",
 				       DEVLINK_ATTR_INFO_VERSION_STORED);
 		pr_out_versions_flash_components(dl, nlh);
+		pr_out_versions_flash_update_default(dl, nlh);
 
 		pr_out_object_end(dl);
 	}
