@@ -3650,6 +3650,49 @@ static void pr_out_versions_single(struct dl *dl, const struct nlmsghdr *nlh,
 		pr_out_object_end(dl);
 }
 
+static void pr_out_versions_flash_components(struct dl *dl, const struct nlmsghdr *nlh)
+{
+	struct nlattr *version;
+	bool array_started = false;
+
+	mnl_attr_for_each(version, nlh, sizeof(struct genlmsghdr)) {
+		struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+		uint8_t ver_is_component;
+		const char *ver_name;
+		int err;
+
+		err = mnl_attr_parse_nested(version, attr_cb, tb);
+		if (err != MNL_CB_OK)
+			continue;
+
+		if (!tb[DEVLINK_ATTR_INFO_VERSION_NAME] ||
+		    !tb[DEVLINK_ATTR_INFO_VERSION_VALUE] ||
+		    !tb[DEVLINK_ATTR_INFO_VERSION_IS_COMPONENT])
+			continue;
+
+		ver_is_component = mnl_attr_get_u8(tb[DEVLINK_ATTR_INFO_VERSION_IS_COMPONENT]);
+		if (!ver_is_component)
+			continue;
+
+		if (!array_started) {
+			pr_out_array_start(dl, "flash_components");
+			array_started = true;
+		}
+
+		ver_name = mnl_attr_get_str(tb[DEVLINK_ATTR_INFO_VERSION_NAME]);
+
+		check_indent_newline(dl);
+
+		print_string(PRINT_ANY, NULL, "%s", ver_name);
+
+		if (!dl->json_output)
+			__pr_out_newline();
+	}
+
+	if (array_started)
+		pr_out_array_end(dl);
+}
+
 static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 			struct nlattr **tb, bool has_versions)
 {
@@ -3696,6 +3739,7 @@ static void pr_out_info(struct dl *dl, const struct nlmsghdr *nlh,
 				       DEVLINK_ATTR_INFO_VERSION_RUNNING);
 		pr_out_versions_single(dl, nlh, "stored",
 				       DEVLINK_ATTR_INFO_VERSION_STORED);
+		pr_out_versions_flash_components(dl, nlh);
 
 		pr_out_object_end(dl);
 	}
