@@ -864,21 +864,38 @@ static int ifname_map_lookup(struct dl *dl, const char *ifname,
 	return -ENOENT;
 }
 
-static int ifname_map_rev_lookup(struct dl *dl, const char *bus_name,
-				 const char *dev_name, uint32_t port_index,
-				 char **p_ifname)
+static int port_ifname_get_cb(const struct nlmsghdr *nlh, void *data)
 {
-	struct ifname_map *ifname_map;
+	struct genlmsghdr *genl = mnl_nlmsg_get_payload(nlh);
+	struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {};
+	char **p_ifname = data;
+	const char *ifname;
 
-	list_for_each_entry(ifname_map, &dl->ifname_map_list, list) {
-		if (strcmp(bus_name, ifname_map->bus_name) == 0 &&
-		    strcmp(dev_name, ifname_map->dev_name) == 0 &&
-		    port_index == ifname_map->port_index) {
-			*p_ifname = ifname_map->ifname;
-			return 0;
-		}
-	}
-	return -ENOENT;
+	mnl_attr_parse(nlh, sizeof(*genl), attr_cb, tb);
+	if (!tb[DEVLINK_ATTR_PORT_NETDEV_NAME])
+		return MNL_CB_ERROR;
+
+	ifname = mnl_attr_get_str(tb[DEVLINK_ATTR_PORT_NETDEV_NAME]);
+	*p_ifname = strdup(ifname);
+	if (!*p_ifname)
+		return MNL_CB_ERROR;
+
+	return MNL_CB_OK;
+}
+
+static int port_ifname_get(struct dl *dl, const char *bus_name,
+			   const char *dev_name, uint32_t port_index,
+			   char **p_ifname)
+{
+	struct nlmsghdr *nlh;
+
+	nlh = mnlu_gen_socket_cmd_prepare(&dl->nlg, DEVLINK_CMD_PORT_GET,
+			       NLM_F_REQUEST | NLM_F_ACK);
+	mnl_attr_put_strz(nlh, DEVLINK_ATTR_BUS_NAME, bus_name);
+	mnl_attr_put_strz(nlh, DEVLINK_ATTR_DEV_NAME, dev_name);
+	mnl_attr_put_u32(nlh, DEVLINK_ATTR_PORT_INDEX, port_index);
+	return mnlu_gen_socket_sndrcv(&dl->nlg, nlh, port_ifname_get_cb,
+				      p_ifname);
 }
 
 static int strtobool(const char *str, bool *p_val)
@@ -2577,8 +2594,7 @@ static void __pr_out_port_handle_start(struct dl *dl, const char *bus_name,
 	char *ifname = NULL;
 
 	if (dl->no_nice_names || !try_nice ||
-	    ifname_map_rev_lookup(dl, bus_name, dev_name,
-				  port_index, &ifname) != 0)
+	    port_ifname_get(dl, bus_name, dev_name, port_index, &ifname) != 0)
 		sprintf(buf, "%s/%s/%d", bus_name, dev_name, port_index);
 	else
 		sprintf(buf, "%s", ifname);
