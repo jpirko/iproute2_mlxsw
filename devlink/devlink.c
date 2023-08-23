@@ -24,6 +24,7 @@
 #include <linux/genetlink.h>
 #include <linux/devlink.h>
 #include <linux/netlink.h>
+#include <linux/net_namespace.h>
 #include <libmnl/libmnl.h>
 #include <netinet/ether.h>
 #include <sys/select.h>
@@ -722,6 +723,7 @@ static const enum mnl_attr_data_type devlink_policy[DEVLINK_ATTR_MAX + 1] = {
 	[DEVLINK_ATTR_LINECARD_SUPPORTED_TYPES] = MNL_TYPE_NESTED,
 	[DEVLINK_ATTR_NESTED_DEVLINK] = MNL_TYPE_NESTED,
 	[DEVLINK_ATTR_SELFTESTS] = MNL_TYPE_NESTED,
+	[DEVLINK_ATTR_NETNS_ID] = MNL_TYPE_U32,
 };
 
 static const enum mnl_attr_data_type
@@ -2740,6 +2742,30 @@ static void pr_out_nested_handle(struct nlattr *nla_nested_dl)
 	sprintf(buf, "%s/%s", mnl_attr_get_str(tb[DEVLINK_ATTR_BUS_NAME]),
 		mnl_attr_get_str(tb[DEVLINK_ATTR_DEV_NAME]));
 	print_string(PRINT_ANY, "nested_devlink", " nested_devlink %s", buf);
+
+	if (tb[DEVLINK_ATTR_NETNS_ID]) {
+		int32_t id = mnl_attr_get_u32(tb[DEVLINK_ATTR_NETNS_ID]);
+
+		if (id >= 0) {
+			char *name = netns_name_from_id(id);
+
+			if (name) {
+				print_string(PRINT_ANY,
+					     "nested_devlink_netns",
+					     " nested_devlink_netns %s", name);
+				free(name);
+			} else {
+				print_int(PRINT_ANY,
+					  "nested_devlink_netnsid",
+					  " nested_devlink_netnsid %d", id);
+			}
+		} else {
+			print_string(PRINT_FP, NULL,
+				     " nested_devlink_netnsid %s", "unknown");
+			print_int(PRINT_JSON,
+				  "nested_devlink_netnsid", NULL, id);
+		}
+	}
 }
 
 static void __pr_out_handle_start(struct dl *dl, struct nlattr **tb,
