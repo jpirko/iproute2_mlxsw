@@ -25,14 +25,10 @@ rdma-dev \- RDMA device configuration
 .ti -8
 .B rdma dev set
 .RI "[ " DEV " ]"
-.BR name
-.BR NEWNAME
-
-.ti -8
-.B rdma dev set
-.RI "[ " DEV " ]"
-.BR netns
-.BR { NSNAME | PID }
+.RB "[ { " name
+.IR NEWNAME
+.RB "| " netns
+.RI "{ " "NSNAME | PID" " } } ... ]"
 
 .ti -8
 .B rdma dev set
@@ -104,10 +100,19 @@ Renames the mlx5_3 device to rdma_0.
 .RE
 .PP
 rdma dev set mlx5_3 netns foo
+.br
 rdma dev set mlx5_3 netns 1234
+.br
+rdma dev set mlx5_3 netns foo name rdma_0
+.br
+rdma dev set mlx5_3 name rdma_0 netns foo
 .RS 4
 Changes the network namespace of RDMA device to foo where foo was
-previously created using the iproute2 ip command.
+previously created using the iproute2 ip command. When
+.B name
+is specified together with
+.BR netns ,
+the device is renamed as part of the same operation.
 .RE
 .PP
 rdma dev set mlx5_3 adaptive-moderation [on/off]

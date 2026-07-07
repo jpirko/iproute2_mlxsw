@@ -13,8 +13,8 @@ static int dev_help(struct rd *rd)
 	pr_out("Usage: %s dev show [DEV]\n", rd->filename);
 	pr_out("       %s dev add DEVNAME type TYPE parent PARENT_DEVNAME\n", rd->filename);
 	pr_out("       %s dev delete DEVNAME\n", rd->filename);
-	pr_out("       %s dev set [DEV] name DEVNAME\n", rd->filename);
-	pr_out("       %s dev set [DEV] netns { NSNAME | PID }\n", rd->filename);
+	pr_out("       %s dev set [DEV] [ name DEVNAME ] [ netns { NSNAME | PID } ]\n",
+	       rd->filename);
 	pr_out("       %s dev set [DEV] adaptive-moderation [on|off]\n", rd->filename);
 	return 0;
 }
@@ -293,98 +293,120 @@ static int dev_one_show(struct rd *rd)
 	return rd_exec_cmd(rd, cmds, "parameter");
 }
 
-static int dev_set_name(struct rd *rd)
-{
-	uint32_t seq;
-
-	if (rd_no_arg(rd)) {
-		pr_err("Please provide device new name.\n");
-		return -EINVAL;
-	}
-
-	rd_prepare_msg(rd, RDMA_NLDEV_CMD_SET,
-		       &seq, (NLM_F_REQUEST | NLM_F_ACK));
-	mnl_attr_put_u32(rd->nlh, RDMA_NLDEV_ATTR_DEV_INDEX, rd->dev_idx);
-	mnl_attr_put_strz(rd->nlh, RDMA_NLDEV_ATTR_DEV_NAME, rd_argv(rd));
-
-	return rd_sendrecv_msg(rd, seq);
-}
-
-static int dev_set_netns(struct rd *rd)
-{
-	char *arg = rd_argv(rd);
-	uint32_t seq;
+struct dev_set_params {
+	char *name;
 	int netns;
+	int dim;
+};
+
+static int dev_set_apply(struct rd *rd, struct dev_set_params *p)
+{
+	uint32_t seq;
 	int ret;
 
-	if (rd_no_arg(rd)) {
-		pr_err("Please provide device name.\n");
-		return -EINVAL;
-	}
-
-	netns = netns_get_fd(arg);
-	if (netns < 0) {
-		fprintf(stderr, "Cannot open network namespace \"%s\": %s\n",
-			rd_argv(rd), strerror(errno));
-		ret = -EINVAL;
-		goto done;
-	}
-
 	rd_prepare_msg(rd, RDMA_NLDEV_CMD_SET,
 		       &seq, (NLM_F_REQUEST | NLM_F_ACK));
 	mnl_attr_put_u32(rd->nlh, RDMA_NLDEV_ATTR_DEV_INDEX, rd->dev_idx);
-	mnl_attr_put_u32(rd->nlh, RDMA_NLDEV_NET_NS_FD, netns);
+
+	if (p->name)
+		mnl_attr_put_strz(rd->nlh, RDMA_NLDEV_ATTR_DEV_NAME, p->name);
+
+	if (p->netns >= 0) {
+		mnl_attr_put_u32(rd->nlh, RDMA_NLDEV_NET_NS_FD, p->netns);
+		if (p->name)
+			mnl_attr_put_u8(rd->nlh, RDMA_NLDEV_ATTR_NAME_ASSIGN_TYPE,
+					RDMA_NAME_ASSIGN_TYPE_USER);
+	}
+
+	if (p->dim >= 0)
+		mnl_attr_put_u8(rd->nlh, RDMA_NLDEV_ATTR_DEV_DIM, p->dim);
+
 	ret = rd_sendrecv_msg(rd, seq);
-	close(netns);
-done:
 	return ret;
-}
-
-static int dev_set_dim_sendmsg(struct rd *rd, uint8_t dim_setting)
-{
-	uint32_t seq;
-
-	rd_prepare_msg(rd, RDMA_NLDEV_CMD_SET, &seq,
-		       (NLM_F_REQUEST | NLM_F_ACK));
-	mnl_attr_put_u32(rd->nlh, RDMA_NLDEV_ATTR_DEV_INDEX, rd->dev_idx);
-	mnl_attr_put_u8(rd->nlh, RDMA_NLDEV_ATTR_DEV_DIM, dim_setting);
-
-	return rd_sendrecv_msg(rd, seq);
-}
-
-static int dev_set_dim_off(struct rd *rd)
-{
-	return dev_set_dim_sendmsg(rd, 0);
-}
-
-static int dev_set_dim_on(struct rd *rd)
-{
-	return dev_set_dim_sendmsg(rd, 1);
-}
-
-static int dev_set_dim(struct rd *rd)
-{
-	const struct rd_cmd cmds[] = {
-		{ NULL,		dev_help},
-		{ "on",		dev_set_dim_on},
-		{ "off",	dev_set_dim_off},
-		{ 0 }
-	};
-
-	return rd_exec_cmd(rd, cmds, "parameter");
 }
 
 static int dev_one_set(struct rd *rd)
 {
-	const struct rd_cmd cmds[] = {
-		{ NULL,		dev_help},
-		{ "name",	dev_set_name},
-		{ "netns",	dev_set_netns},
-		{ "adaptive-moderation",	dev_set_dim},
-		{ 0 }
+	struct dev_set_params p = {
+		.netns = -1,
+		.dim = -1,
 	};
+	int ret = 0;
 
-	return rd_exec_cmd(rd, cmds, "parameter");
+	while (!rd_no_arg(rd)) {
+		if (strcmpx(rd_argv(rd), "name") == 0) {
+			rd_arg_inc(rd);
+			if (rd_no_arg(rd)) {
+				pr_err("Please provide device new name.\n");
+				ret = -EINVAL;
+				goto out;
+			}
+			if (p.name) {
+				pr_err("Duplicate \"name\".\n");
+				ret = -EINVAL;
+				goto out;
+			}
+			p.name = rd_argv(rd);
+			rd_arg_inc(rd);
+		} else if (strcmpx(rd_argv(rd), "netns") == 0) {
+			rd_arg_inc(rd);
+			if (rd_no_arg(rd)) {
+				pr_err("Please provide network namespace.\n");
+				ret = -EINVAL;
+				goto out;
+			}
+			if (p.netns >= 0) {
+				pr_err("Duplicate \"netns\".\n");
+				ret = -EINVAL;
+				goto out;
+			}
+			p.netns = netns_get_fd(rd_argv(rd));
+			if (p.netns < 0) {
+				fprintf(stderr,
+					"Cannot open network namespace \"%s\": %s\n",
+					rd_argv(rd), strerror(errno));
+				ret = -EINVAL;
+				goto out;
+			}
+			rd_arg_inc(rd);
+		} else if (strcmpx(rd_argv(rd), "adaptive-moderation") == 0) {
+			rd_arg_inc(rd);
+			if (rd_no_arg(rd)) {
+				pr_err("Please provide adaptive-moderation value.\n");
+				ret = -EINVAL;
+				goto out;
+			}
+			if (p.dim >= 0) {
+				pr_err("Duplicate \"adaptive-moderation\".\n");
+				ret = -EINVAL;
+				goto out;
+			}
+			if (strcmpx(rd_argv(rd), "on") == 0) {
+				p.dim = 1;
+				rd_arg_inc(rd);
+			} else if (strcmpx(rd_argv(rd), "off") == 0) {
+				p.dim = 0;
+				rd_arg_inc(rd);
+			} else {
+				pr_err("Invalid adaptive-moderation value.\n");
+				ret = -EINVAL;
+				goto out;
+			}
+		} else {
+			pr_err("Unknown parameter '%s'.\n", rd_argv(rd));
+			ret = -EINVAL;
+			goto out;
+		}
+	}
+
+	if (!p.name && p.netns < 0 && p.dim < 0)
+		return dev_help(rd);
+
+	ret = dev_set_apply(rd, &p);
+out:
+	if (p.netns >= 0)
+		close(p.netns);
+	return ret;
 }
 
 static int dev_show(struct rd *rd)
